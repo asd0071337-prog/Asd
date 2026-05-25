@@ -402,6 +402,12 @@ function renderInvest() {
   drawAlloc(byClass);
 }
 
+const CHART_PALETTE = ["#6ee7b7","#60a5fa","#c4b5fd","#fbbf24","#f87171","#f472b6","#34d399","#93c5fd","#fda4af","#fcd34d"];
+const CHART_TEXT = "#eef0fa";
+const CHART_MUTED = "#7e85a8";
+const CHART_GRID = "rgba(255,255,255,0.06)";
+const CHART_BORDER = "rgba(7,9,26,0.9)";
+
 let allocChart;
 function drawAlloc(byClass) {
   const ctx = document.getElementById("chart-alloc");
@@ -415,11 +421,19 @@ function drawAlloc(byClass) {
       labels,
       datasets: [{
         data,
-        backgroundColor: ["#6ee7b7","#60a5fa","#a78bfa","#f472b6","#fbbf24","#f87171","#34d399","#93c5fd"],
-        borderColor: "#131a30",
+        backgroundColor: CHART_PALETTE,
+        borderColor: CHART_BORDER,
+        borderWidth: 2,
+        hoverOffset: 8,
       }]
     },
-    options: { plugins: { legend: { labels: { color: "#e6e9f5" } } } }
+    options: {
+      cutout: "62%",
+      plugins: {
+        legend: { labels: { color: CHART_TEXT, font: { family: "Inter", size: 12 }, padding: 14, usePointStyle: true } },
+        tooltip: { backgroundColor: "rgba(12,16,36,0.95)", borderColor: "rgba(255,255,255,0.08)", borderWidth: 1, padding: 10, titleFont: { family: "Inter" }, bodyFont: { family: "Inter" } }
+      }
+    }
   });
 }
 
@@ -804,6 +818,9 @@ function renderDashboard() {
   const spendByMonth = months.map(m => sum(STATE.transactions.filter(t => t.type==="expense" && t.date.startsWith(m)).map(t => t.amt)));
 
   if (typeof Chart !== "undefined") {
+    Chart.defaults.font.family = "Inter, system-ui, sans-serif";
+    Chart.defaults.color = CHART_TEXT;
+
     const ctx1 = document.getElementById("chart-cashflow");
     if (cashflowChart) cashflowChart.destroy();
     cashflowChart = new Chart(ctx1, {
@@ -811,16 +828,19 @@ function renderDashboard() {
       data: {
         labels: months,
         datasets: [
-          { label: "Income", data: incomeByMonth, backgroundColor: "#6ee7b7" },
-          { label: "Spend",  data: spendByMonth,  backgroundColor: "#f87171" },
+          { label: "Income", data: incomeByMonth, backgroundColor: "#6ee7b7", borderRadius: 6, borderSkipped: false },
+          { label: "Spend",  data: spendByMonth,  backgroundColor: "#f87171", borderRadius: 6, borderSkipped: false },
         ]
       },
       options: {
         scales: {
-          x: { ticks: { color: "#8a92b2" }, grid: { color: "#232c4a" } },
-          y: { ticks: { color: "#8a92b2" }, grid: { color: "#232c4a" } }
+          x: { ticks: { color: CHART_MUTED }, grid: { color: "transparent" }, border: { color: CHART_GRID } },
+          y: { ticks: { color: CHART_MUTED }, grid: { color: CHART_GRID }, border: { color: "transparent" } }
         },
-        plugins: { legend: { labels: { color: "#e6e9f5" } } }
+        plugins: {
+          legend: { labels: { color: CHART_TEXT, usePointStyle: true, padding: 14 } },
+          tooltip: { backgroundColor: "rgba(12,16,36,0.95)", borderColor: "rgba(255,255,255,0.08)", borderWidth: 1, padding: 10 }
+        }
       }
     });
 
@@ -836,11 +856,19 @@ function renderDashboard() {
         labels: Object.keys(catSpend),
         datasets: [{
           data: Object.values(catSpend),
-          backgroundColor: ["#6ee7b7","#60a5fa","#a78bfa","#f472b6","#fbbf24","#f87171","#34d399","#93c5fd","#fda4af","#c4b5fd","#fcd34d"],
-          borderColor: "#131a30"
+          backgroundColor: CHART_PALETTE,
+          borderColor: CHART_BORDER,
+          borderWidth: 2,
+          hoverOffset: 8,
         }]
       },
-      options: { plugins: { legend: { labels: { color: "#e6e9f5" } } } }
+      options: {
+        cutout: "62%",
+        plugins: {
+          legend: { labels: { color: CHART_TEXT, usePointStyle: true, padding: 14 } },
+          tooltip: { backgroundColor: "rgba(12,16,36,0.95)", borderColor: "rgba(255,255,255,0.08)", borderWidth: 1, padding: 10 }
+        }
+      }
     });
   }
 
