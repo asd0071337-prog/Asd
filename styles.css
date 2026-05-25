@@ -282,6 +282,30 @@ footer {
 .pos { color: var(--accent); }
 .neg { color: var(--danger); }
 
+.row-controls input[type=search] {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.92rem;
+  min-width: 140px;
+}
+.row-actions { white-space: nowrap; display: flex; gap: 0.25rem; justify-content: flex-end; }
+.icon-btn {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.95rem;
+  border-radius: 4px;
+}
+.icon-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+.icon-btn.del:hover { color: var(--danger); }
+.icon-btn.edit:hover { color: var(--accent-2); }
+tr.editing td { background: rgba(96, 165, 250, 0.08); }
+
 .ai-row {
   display: flex;
   flex-wrap: wrap;

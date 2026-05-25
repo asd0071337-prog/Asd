@@ -80,10 +80,11 @@
           <option value="expense">Expense</option>
           <option value="income">Income</option>
         </select>
-        <input type="text" id="tx-desc" placeholder="Description (e.g. Groceries)" required />
+        <input type="text" id="tx-desc" placeholder="Description (e.g. Bónus)" required />
         <select id="tx-cat"></select>
-        <input type="number" id="tx-amt" placeholder="Amount" step="0.01" min="0" required />
+        <input type="number" id="tx-amt" placeholder="Amount (kr.)" step="1" min="0" required />
         <button type="submit" class="primary">Add</button>
+        <button type="button" id="tx-cancel" class="ghost" style="display:none;">Cancel</button>
       </form>
     </div>
 
@@ -91,6 +92,7 @@
       <div class="panel-head">
         <h3>History</h3>
         <div class="row-controls">
+          <input type="search" id="tx-search" placeholder="Search…" />
           <select id="tx-filter-month"></select>
           <button id="tx-clear" class="ghost">Clear all</button>
         </div>
@@ -111,7 +113,7 @@
       <div id="budget-rows" class="budget-rows"></div>
       <div class="row-form" style="margin-top:1rem;">
         <input type="text" id="bcat-name" placeholder="New category" />
-        <input type="number" id="bcat-amt" placeholder="Monthly limit" step="0.01" min="0" />
+        <input type="number" id="bcat-amt" placeholder="Monthly limit (kr.)" step="1" min="0" />
         <button id="bcat-add" class="primary">Add category</button>
       </div>
     </div>
@@ -122,9 +124,9 @@
     <div class="panel">
       <h3>Savings goals</h3>
       <form id="goal-form" class="row-form">
-        <input type="text" id="goal-name" placeholder="Goal (e.g. Emergency fund)" required />
-        <input type="number" id="goal-target" placeholder="Target $" step="0.01" min="0" required />
-        <input type="number" id="goal-current" placeholder="Saved so far $" step="0.01" min="0" />
+        <input type="text" id="goal-name" placeholder="Goal (e.g. Varasjóður)" required />
+        <input type="number" id="goal-target" placeholder="Target (kr.)" step="1" min="0" required />
+        <input type="number" id="goal-current" placeholder="Saved so far (kr.)" step="1" min="0" />
         <input type="date" id="goal-date" />
         <button type="submit" class="primary">Add goal</button>
       </form>
@@ -163,7 +165,7 @@
       <form id="hold-form" class="row-form">
         <input type="text" id="hold-ticker" placeholder="Ticker (e.g. VTI)" required />
         <input type="number" id="hold-shares" placeholder="Shares" step="0.0001" min="0" required />
-        <input type="number" id="hold-cost" placeholder="Avg cost per share" step="0.01" min="0" required />
+        <input type="number" id="hold-cost" placeholder="Avg cost / share (kr.)" step="1" min="0" required />
         <select id="hold-class">
           <option value="US Stocks">US Stocks</option>
           <option value="Intl Stocks">Intl Stocks</option>
@@ -179,7 +181,7 @@
         <thead><tr><th>Ticker</th><th>Class</th><th class="right">Shares</th><th class="right">Avg cost</th><th class="right">Price</th><th class="right">Value</th><th class="right">P/L</th><th></th></tr></thead>
         <tbody id="hold-body"></tbody>
       </table>
-      <p id="hold-empty" class="muted">No holdings yet. Add a ticker above. Prices update from a free public quote feed when you click Refresh.</p>
+      <p id="hold-empty" class="muted">No holdings yet. Add a ticker (e.g. <code>VTI</code> or <code>marel.is</code>). US tickers refresh in USD and convert via the rate in Settings.</p>
     </div>
 
     <div class="grid-2">
@@ -275,6 +277,22 @@
         <button id="wipe-btn" class="danger">Erase everything</button>
       </div>
     </div>
+    <div class="panel">
+      <h3>Currency & exchange rate</h3>
+      <p class="muted">
+        The app displays everything in Icelandic króna. When you refresh stock prices, US-listed tickers come back
+        in USD and get multiplied by this rate to show in ISK. Update it when the króna moves meaningfully.
+      </p>
+      <div class="row-form">
+        <label class="muted" style="display:flex; align-items:center; gap:0.5rem;">
+          1 USD =
+          <input type="number" id="fx-rate" step="0.1" min="1" style="width: 120px;" />
+          ISK
+        </label>
+        <span class="muted">(Icelandic tickers ending in .is are treated as already in ISK.)</span>
+      </div>
+    </div>
+
     <div class="panel">
       <h3>AI lookup</h3>
       <p class="muted">

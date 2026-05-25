@@ -12,12 +12,12 @@ const DEFAULT_CATEGORIES = [
 ];
 
 const DEFAULT_BUDGETS = {
-  Housing: 1500, Groceries: 500, Dining: 200, Transport: 200,
-  Utilities: 200, Entertainment: 100, Subscriptions: 60
+  Housing: 250000, Groceries: 100000, Dining: 40000, Transport: 30000,
+  Utilities: 25000, Entertainment: 20000, Subscriptions: 10000
 };
 
-const fmt = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
-const fmt0 = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const fmt = new Intl.NumberFormat("is-IS", { style: "currency", currency: "ISK", maximumFractionDigits: 0 });
+const fmt0 = fmt;
 const pct = (n) => (n >= 0 ? "+" : "") + n.toFixed(1) + "%";
 
 const STATE = load();
@@ -33,8 +33,12 @@ function load() {
     categories: [...DEFAULT_CATEGORIES],
     goals: [],
     holdings: [],
-    settings: { currency: "USD" },
+    settings: { currency: "ISK", fxUsdIsk: 140 },
   };
+}
+function fxRate() {
+  const v = parseFloat(STATE.settings?.fxUsdIsk);
+  return isFinite(v) && v > 0 ? v : 140;
 }
 function save() { localStorage.setItem(KEY, JSON.stringify(STATE)); }
 
@@ -63,26 +67,46 @@ const txFilter = document.getElementById("tx-filter-month");
 
 txDate.value = new Date().toISOString().slice(0, 10);
 
+let editingTxId = null;
+const txSubmitBtn = txForm.querySelector("button[type=submit]");
+const txCancelBtn = document.getElementById("tx-cancel");
+const txSearch = document.getElementById("tx-search");
+
 function populateCategories() {
   txCat.innerHTML = STATE.categories.map(c => `<option>${c}</option>`).join("");
 }
 
+function resetTxForm() {
+  editingTxId = null;
+  txDesc.value = ""; txAmt.value = "";
+  txDate.value = new Date().toISOString().slice(0, 10);
+  txSubmitBtn.textContent = "Add";
+  if (txCancelBtn) txCancelBtn.style.display = "none";
+}
+
 txForm.addEventListener("submit", (e) => {
   e.preventDefault();
-  const tx = {
-    id: crypto.randomUUID(),
+  const fields = {
     date: txDate.value,
     type: txType.value,
     desc: txDesc.value.trim(),
     cat: txType.value === "income" ? "Income" : txCat.value,
     amt: parseFloat(txAmt.value),
   };
-  if (!tx.desc || !(tx.amt > 0)) return;
-  STATE.transactions.push(tx);
+  if (!fields.desc || !(fields.amt > 0)) return;
+  if (editingTxId) {
+    const t = STATE.transactions.find(x => x.id === editingTxId);
+    if (t) Object.assign(t, fields);
+  } else {
+    STATE.transactions.push({ id: crypto.randomUUID(), ...fields });
+  }
   save();
-  txDesc.value = ""; txAmt.value = "";
+  resetTxForm();
   renderAll();
 });
+
+if (txCancelBtn) txCancelBtn.addEventListener("click", () => { resetTxForm(); });
+if (txSearch) txSearch.addEventListener("input", () => renderTransactions());
 
 document.getElementById("tx-clear").addEventListener("click", () => {
   if (!confirm("Erase all transactions?")) return;
@@ -103,26 +127,47 @@ function renderTransactions() {
     sorted.map(m => `<option value="${m}" ${m === prev ? "selected" : ""}>${m}</option>`).join("");
 
   const filter = txFilter.value;
+  const q = (txSearch?.value || "").trim().toLowerCase();
   const rows = STATE.transactions
     .filter(t => filter === "all" || t.date.startsWith(filter))
+    .filter(t => !q || t.desc.toLowerCase().includes(q) || t.cat.toLowerCase().includes(q))
     .sort((a, b) => b.date.localeCompare(a.date));
 
   txEmpty.style.display = rows.length ? "none" : "block";
   txBody.innerHTML = rows.map(t => {
     const sign = t.type === "income" ? "+" : "−";
     const cls = t.type === "income" ? "pos" : "";
-    return `<tr>
+    const editing = t.id === editingTxId ? " editing" : "";
+    return `<tr class="tx-row${editing}">
       <td>${t.date}</td>
       <td>${t.type}</td>
       <td>${escapeHtml(t.desc)}</td>
       <td>${escapeHtml(t.cat)}</td>
       <td class="right ${cls}">${sign}${fmt.format(t.amt)}</td>
-      <td><button class="del" data-id="${t.id}" title="Delete">✕</button></td>
+      <td class="row-actions">
+        <button class="icon-btn edit" data-edit="${t.id}" title="Edit">✎</button>
+        <button class="icon-btn del" data-id="${t.id}" title="Delete">✕</button>
+      </td>
     </tr>`;
   }).join("");
   txBody.querySelectorAll(".del").forEach(b => b.addEventListener("click", () => {
+    if (b.dataset.id === editingTxId) resetTxForm();
     STATE.transactions = STATE.transactions.filter(t => t.id !== b.dataset.id);
     save(); renderAll();
+  }));
+  txBody.querySelectorAll("[data-edit]").forEach(b => b.addEventListener("click", () => {
+    const t = STATE.transactions.find(x => x.id === b.dataset.edit);
+    if (!t) return;
+    editingTxId = t.id;
+    txDate.value = t.date;
+    txType.value = t.type;
+    txDesc.value = t.desc;
+    txAmt.value = t.amt;
+    if (t.type !== "income") txCat.value = t.cat;
+    txSubmitBtn.textContent = "Update";
+    if (txCancelBtn) txCancelBtn.style.display = "";
+    document.getElementById("tx-form").scrollIntoView({ behavior: "smooth", block: "center" });
+    renderTransactions();
   }));
 }
 txFilter.addEventListener("change", () => { renderTransactions(); });
@@ -210,7 +255,7 @@ function renderGoals() {
       <div class="meta muted">${fmt.format(g.current)} / ${fmt.format(g.target)}${suffix}</div>
       <div class="bar"><span style="width:${pctDone}%"></span></div>
       <div class="row" style="margin-top:0.5rem; gap:0.5rem;">
-        <input type="number" placeholder="Add savings $" step="0.01" min="0" data-add="${g.id}" style="flex:1; background:var(--panel); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:0.4rem 0.5rem;"/>
+        <input type="number" placeholder="Add savings (kr.)" step="1" min="0" data-add="${g.id}" style="flex:1; background:var(--panel); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:0.4rem 0.5rem;"/>
         <button class="ghost" data-add-btn="${g.id}">Add</button>
       </div>
     </div>`;
@@ -254,17 +299,23 @@ async function refreshPrices() {
   if (!STATE.holdings.length) return;
   btn.disabled = true; btn.textContent = "Refreshing…";
   let updated = 0, failed = 0;
+  const rate = fxRate();
   for (const h of STATE.holdings) {
-    if (h.klass === "Cash") { h.price = 1; updated++; continue; }
-    const p = await fetchQuote(h.ticker);
-    if (p != null && isFinite(p) && p > 0) { h.price = p; updated++; }
-    else { failed++; }
+    if (h.klass === "Cash") { updated++; continue; }
+    const usd = await fetchQuote(h.ticker);
+    if (usd != null && isFinite(usd) && usd > 0) {
+      // Stooq US tickers return USD; convert to ISK at the user-set rate.
+      // Tickers the user marked as already ISK-priced (with .is suffix) skip conversion.
+      const isIslandic = h.ticker.toLowerCase().endsWith(".is");
+      h.price = isIslandic ? usd : usd * rate;
+      updated++;
+    } else { failed++; }
   }
   save();
   btn.disabled = false; btn.textContent = "Refresh prices";
   renderInvest();
   if (failed > 0) {
-    alert(`Updated ${updated} of ${STATE.holdings.length} holdings. ${failed} ticker(s) couldn't be fetched (network blocked or unknown symbol). Existing prices kept.`);
+    alert(`Updated ${updated} of ${STATE.holdings.length} holdings. ${failed} ticker(s) couldn't be fetched. Existing prices kept.`);
   }
 }
 
@@ -858,6 +909,21 @@ function lastNMonths(n) {
 }
 
 // ---------------- Settings ----------------
+// FX rate setting
+const fxInput = document.getElementById("fx-rate");
+if (fxInput) {
+  fxInput.value = fxRate();
+  fxInput.addEventListener("change", () => {
+    const v = parseFloat(fxInput.value);
+    if (v > 0) {
+      STATE.settings = STATE.settings || {};
+      STATE.settings.fxUsdIsk = v;
+      save();
+      renderInvest(); renderDashboard();
+    }
+  });
+}
+
 document.getElementById("export-btn").addEventListener("click", () => {
   const blob = new Blob([JSON.stringify(STATE, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -893,32 +959,36 @@ document.getElementById("seed-btn").addEventListener("click", () => {
 function demoData() {
   const today = new Date();
   const tx = [];
+  const r = (n) => Math.round(n / 100) * 100;
   for (let i = 0; i < 5; i++) {
     const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
     const ym = d.toISOString().slice(0, 7);
-    tx.push({ id: crypto.randomUUID(), date: ym + "-01", type: "income", desc: "Salary", cat: "Income", amt: 5200 });
-    tx.push({ id: crypto.randomUUID(), date: ym + "-02", type: "expense", desc: "Rent", cat: "Housing", amt: 1500 });
-    tx.push({ id: crypto.randomUUID(), date: ym + "-07", type: "expense", desc: "Groceries", cat: "Groceries", amt: 320 + Math.round(Math.random()*60) });
-    tx.push({ id: crypto.randomUUID(), date: ym + "-12", type: "expense", desc: "Restaurants", cat: "Dining", amt: 90 + Math.round(Math.random()*120) });
-    tx.push({ id: crypto.randomUUID(), date: ym + "-15", type: "expense", desc: "Electric", cat: "Utilities", amt: 78 });
-    tx.push({ id: crypto.randomUUID(), date: ym + "-18", type: "expense", desc: "Streaming", cat: "Subscriptions", amt: 45 });
-    tx.push({ id: crypto.randomUUID(), date: ym + "-22", type: "expense", desc: "Gas", cat: "Transport", amt: 60 });
+    tx.push({ id: crypto.randomUUID(), date: ym + "-01", type: "income",  desc: "Laun",         cat: "Income",        amt: 720000 });
+    tx.push({ id: crypto.randomUUID(), date: ym + "-02", type: "expense", desc: "Leiga",        cat: "Housing",       amt: 230000 });
+    tx.push({ id: crypto.randomUUID(), date: ym + "-05", type: "expense", desc: "Bónus / Krónan", cat: "Groceries",   amt: r(85000 + Math.random()*15000) });
+    tx.push({ id: crypto.randomUUID(), date: ym + "-09", type: "expense", desc: "Veitingar",    cat: "Dining",        amt: r(28000 + Math.random()*15000) });
+    tx.push({ id: crypto.randomUUID(), date: ym + "-12", type: "expense", desc: "Hiti og rafmagn", cat: "Utilities",  amt: 16500 });
+    tx.push({ id: crypto.randomUUID(), date: ym + "-15", type: "expense", desc: "Strætó-kort",  cat: "Transport",     amt: 12500 });
+    tx.push({ id: crypto.randomUUID(), date: ym + "-18", type: "expense", desc: "Netflix + Spotify", cat: "Subscriptions", amt: 4500 });
+    tx.push({ id: crypto.randomUUID(), date: ym + "-22", type: "expense", desc: "Bensín",       cat: "Transport",     amt: r(18000 + Math.random()*5000) });
+    tx.push({ id: crypto.randomUUID(), date: ym + "-25", type: "expense", desc: "Sundkort",     cat: "Health",        amt: 9500 });
   }
+  const rate = 140;
   return {
     transactions: tx,
     budgets: { ...DEFAULT_BUDGETS },
     categories: [...DEFAULT_CATEGORIES],
     goals: [
-      { id: crypto.randomUUID(), name: "Emergency fund", target: 10000, current: 4200, date: "" },
-      { id: crypto.randomUUID(), name: "Vacation", target: 3000, current: 800, date: new Date(today.getFullYear(), today.getMonth()+8, 1).toISOString().slice(0,10) },
+      { id: crypto.randomUUID(), name: "Varasjóður", target: 1500000, current: 600000, date: "" },
+      { id: crypto.randomUUID(), name: "Sumarfrí",   target: 500000,  current: 120000, date: new Date(today.getFullYear(), today.getMonth()+8, 1).toISOString().slice(0,10) },
     ],
     holdings: [
-      { id: crypto.randomUUID(), ticker: "VTI",  klass: "US Stocks",   shares: 12, cost: 230, price: 245 },
-      { id: crypto.randomUUID(), ticker: "VXUS", klass: "Intl Stocks", shares: 25, cost: 56,  price: 60 },
-      { id: crypto.randomUUID(), ticker: "BND",  klass: "Bonds",       shares: 30, cost: 72,  price: 71 },
-      { id: crypto.randomUUID(), ticker: "SGOV", klass: "Cash",        shares: 20, cost: 100, price: 100 },
+      { id: crypto.randomUUID(), ticker: "VTI",  klass: "US Stocks",   shares: 12, cost: 230 * rate, price: 245 * rate },
+      { id: crypto.randomUUID(), ticker: "VXUS", klass: "Intl Stocks", shares: 25, cost: 56  * rate, price: 60  * rate },
+      { id: crypto.randomUUID(), ticker: "BND",  klass: "Bonds",       shares: 30, cost: 72  * rate, price: 71  * rate },
+      { id: crypto.randomUUID(), ticker: "SGOV", klass: "Cash",        shares: 20, cost: 100 * rate, price: 100 * rate },
     ],
-    settings: { currency: "USD" },
+    settings: { currency: "ISK", fxUsdIsk: rate },
   };
 }
 
