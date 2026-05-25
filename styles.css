@@ -281,3 +281,50 @@ footer {
 
 .pos { color: var(--accent); }
 .neg { color: var(--danger); }
+
+.ai-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.5rem 0;
+}
+.ai-row input {
+  flex: 1 1 200px;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.95rem;
+}
+.ai-row button { padding: 0.55rem 0.9rem; }
+.ai-row .muted { font-size: 0.85rem; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em; background: rgba(255,255,255,0.05); padding: 0 0.3rem; border-radius: 4px; }
+
+.ai-analysis {
+  margin-top: 1rem;
+  padding: 1rem 1.1rem;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #1a294a, var(--panel-2));
+  border: 1px solid var(--line);
+}
+.ai-analysis h4 { margin: 0 0 0.4rem; }
+.ai-analysis p { margin: 0.35rem 0; }
+.ai-analysis .meta { color: var(--muted); font-size: 0.85rem; margin-bottom: 0.5rem; }
+.ai-analysis ul { margin: 0.4rem 0 0; padding-left: 1.25rem; }
+.ai-analysis ul li { margin: 0.15rem 0; }
+.ai-analysis .sources { font-size: 0.8rem; color: var(--muted); margin-top: 0.6rem; word-break: break-all; }
+.ai-analysis .sources a { color: var(--accent-2); }
+
+.spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+  margin-right: 0.3rem;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

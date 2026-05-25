@@ -3,6 +3,8 @@
 // stock-quote fetch to a public CSV endpoint when the user clicks "Refresh prices".
 
 const KEY = "asd-finance:v1";
+const API_KEY_STORAGE = "asd-finance:anthropic-key";
+const MODEL_STORAGE = "asd-finance:ai-model";
 
 const DEFAULT_CATEGORIES = [
   "Housing", "Groceries", "Dining", "Transport", "Utilities", "Health",
@@ -478,6 +480,200 @@ document.getElementById("screen-form").addEventListener("submit", (e) => {
     </div>`;
 });
 
+// ---------------- AI lookup ----------------
+const apiKeyInput = document.getElementById("api-key");
+const apiKeyStatus = document.getElementById("api-key-status");
+const aiModelSelect = document.getElementById("ai-model");
+
+function loadApiKey() {
+  const k = localStorage.getItem(API_KEY_STORAGE) || "";
+  if (k) {
+    apiKeyInput.value = k;
+    apiKeyStatus.textContent = `Key saved (ends in …${k.slice(-4)}). Stored only in this browser.`;
+  } else {
+    apiKeyStatus.textContent = "No key saved. The AI lookup button is disabled until you add one.";
+  }
+  const m = localStorage.getItem(MODEL_STORAGE);
+  if (m) aiModelSelect.value = m;
+  refreshAiAvailability();
+}
+
+document.getElementById("api-key-save").addEventListener("click", () => {
+  const k = apiKeyInput.value.trim();
+  if (!k.startsWith("sk-ant-")) {
+    apiKeyStatus.textContent = "That doesn't look like an Anthropic API key (should start with sk-ant-).";
+    return;
+  }
+  localStorage.setItem(API_KEY_STORAGE, k);
+  localStorage.setItem(MODEL_STORAGE, aiModelSelect.value);
+  loadApiKey();
+});
+document.getElementById("api-key-clear").addEventListener("click", () => {
+  localStorage.removeItem(API_KEY_STORAGE);
+  apiKeyInput.value = "";
+  loadApiKey();
+});
+aiModelSelect.addEventListener("change", () => {
+  localStorage.setItem(MODEL_STORAGE, aiModelSelect.value);
+});
+
+function refreshAiAvailability() {
+  const has = !!localStorage.getItem(API_KEY_STORAGE);
+  document.getElementById("ai-lookup").disabled = !has;
+  document.getElementById("ai-hint").textContent = has
+    ? `Using ${localStorage.getItem(MODEL_STORAGE) || "claude-opus-4-7"} with web search. Each lookup typically costs a few cents and takes 15–40s.`
+    : "Needs an Anthropic API key — add yours in Settings. Each lookup uses web search and typically costs a few cents.";
+}
+
+const SCREEN_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "company_name","industry","pe_ratio","earnings_growth_5y",
+    "dividend_yield_pct","debt_to_equity","roe_pct",
+    "fcf_trend","moat","as_of_date","analysis","risks","sources"
+  ],
+  properties: {
+    company_name: { type: "string" },
+    industry: { type: "string" },
+    pe_ratio: { anyOf: [{ type: "number" }, { type: "null" }] },
+    earnings_growth_5y: { anyOf: [{ type: "number" }, { type: "null" }] },
+    dividend_yield_pct: { anyOf: [{ type: "number" }, { type: "null" }] },
+    debt_to_equity: { anyOf: [{ type: "number" }, { type: "null" }] },
+    roe_pct: { anyOf: [{ type: "number" }, { type: "null" }] },
+    fcf_trend: { type: "string", enum: ["yes","flat","no","unknown"] },
+    moat: { type: "string", enum: ["wide","narrow","none","unknown"] },
+    as_of_date: { type: "string" },
+    analysis: { type: "string" },
+    risks: { type: "array", items: { type: "string" } },
+    sources: { type: "array", items: { type: "string" } }
+  }
+};
+
+const SCREEN_SYSTEM = `You are a financial research assistant inside a personal finance app. The user gives you a stock or ETF ticker. Use web search to find the most recent publicly reported figures (trailing twelve months where applicable), then return JSON matching the schema with:
+- pe_ratio: trailing P/E (null if not meaningful, e.g. negative earnings)
+- earnings_growth_5y: annualized EPS growth over the trailing 5 years (percent)
+- dividend_yield_pct: forward dividend yield (percent)
+- debt_to_equity: most recent total debt / total equity ratio
+- roe_pct: trailing return on equity (percent)
+- fcf_trend: "yes" if free cash flow has been growing over the last 3 years, "flat", "no" if declining, "unknown" if you cannot tell
+- moat: your judgement of competitive advantage — "wide", "narrow", "none", or "unknown"
+- as_of_date: ISO date of the most recent reporting period the metrics reflect
+- analysis: 3–5 sentences of plain-English assessment — what the business does, what the numbers say, and whether it looks attractive at current levels. Be honest and balanced.
+- risks: 2–4 short bullet phrases for the biggest risks an investor should weigh
+- sources: 2–5 URLs you actually consulted
+
+Rules:
+- Never invent a number. If a metric isn't available from a credible source, return null and say so in the analysis.
+- For ETFs, use ETF-appropriate proxies (e.g. weighted-average P/E, distribution yield) and explain in the analysis.
+- This is education, not personalized advice. Do not recommend buying or selling — describe and assess.`;
+
+document.getElementById("ai-lookup").addEventListener("click", async () => {
+  const ticker = document.getElementById("ai-ticker").value.trim().toUpperCase();
+  if (!ticker) { alert("Enter a ticker first."); return; }
+  const key = localStorage.getItem(API_KEY_STORAGE);
+  if (!key) { alert("Add your Anthropic API key in Settings first."); return; }
+  const model = localStorage.getItem(MODEL_STORAGE) || "claude-opus-4-7";
+
+  const btn = document.getElementById("ai-lookup");
+  const status = document.getElementById("ai-status");
+  const analysisDiv = document.getElementById("ai-analysis");
+  btn.disabled = true;
+  status.innerHTML = `<span class="spinner"></span> Looking up ${escapeHtml(ticker)}… (web search can take 20–40s)`;
+  analysisDiv.innerHTML = "";
+
+  try {
+    const data = await lookupCompany({ ticker, model, key });
+    fillScreenerForm(ticker, data);
+    renderAiAnalysis(data);
+    // Trigger the score with the freshly-filled fields
+    document.getElementById("screen-form").requestSubmit();
+    status.textContent = `Done — figures are as of ${data.as_of_date || "the date shown below"}.`;
+  } catch (err) {
+    console.error(err);
+    status.innerHTML = `<span style="color: var(--danger)">${escapeHtml(err.message || "Lookup failed.")}</span>`;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+async function lookupCompany({ ticker, model, key }) {
+  const body = {
+    model,
+    max_tokens: 4096,
+    thinking: { type: "adaptive" },
+    system: SCREEN_SYSTEM,
+    tools: [{ type: "web_search_20260209", name: "web_search" }],
+    output_config: { format: { type: "json_schema", schema: SCREEN_SCHEMA } },
+    messages: [{ role: "user", content: `Look up ticker ${ticker} and return the JSON analysis.` }],
+  };
+
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    let detail = "";
+    try { detail = (await resp.json())?.error?.message || ""; } catch (_) {}
+    if (resp.status === 401) throw new Error("Invalid API key. Check Settings.");
+    if (resp.status === 429) throw new Error("Rate limited. Try again in a moment.");
+    throw new Error(`API error ${resp.status}${detail ? ": " + detail : ""}`);
+  }
+
+  const data = await resp.json();
+  if (data.stop_reason === "refusal") {
+    throw new Error("Claude declined to analyze this ticker. Try a different one.");
+  }
+  const textBlock = (data.content || []).find(b => b.type === "text");
+  if (!textBlock?.text) throw new Error("No analysis returned. Try again.");
+  try {
+    return JSON.parse(textBlock.text);
+  } catch (e) {
+    throw new Error("Couldn't parse the response. Try again.");
+  }
+}
+
+function fillScreenerForm(ticker, d) {
+  document.getElementById("s-ticker").value = ticker;
+  const set = (id, v) => { document.getElementById(id).value = (v ?? "") === "" ? "" : String(v); };
+  set("s-pe", d.pe_ratio);
+  set("s-growth", d.earnings_growth_5y);
+  set("s-div", d.dividend_yield_pct);
+  set("s-de", d.debt_to_equity);
+  set("s-roe", d.roe_pct);
+  document.getElementById("s-fcf").value = ["yes","flat","no"].includes(d.fcf_trend) ? d.fcf_trend : "flat";
+  document.getElementById("s-moat").value = ["wide","narrow","none"].includes(d.moat) ? d.moat : "narrow";
+}
+
+function renderAiAnalysis(d) {
+  const sourceLinks = (d.sources || [])
+    .filter(u => /^https?:\/\//i.test(u))
+    .map(u => `<a href="${escapeAttr(u)}" target="_blank" rel="noopener">${escapeHtml(shortUrl(u))}</a>`)
+    .join(" · ");
+  const risks = (d.risks || []).map(r => `<li>${escapeHtml(r)}</li>`).join("");
+  document.getElementById("ai-analysis").innerHTML = `
+    <div class="ai-analysis">
+      <h4>${escapeHtml(d.company_name || "Analysis")} <span class="muted" style="font-weight:400;">${escapeHtml(d.industry || "")}</span></h4>
+      <div class="meta">As of ${escapeHtml(d.as_of_date || "—")} · AI-generated, verify before acting on it</div>
+      <p>${escapeHtml(d.analysis || "")}</p>
+      ${risks ? `<div><b>Key risks</b><ul>${risks}</ul></div>` : ""}
+      ${sourceLinks ? `<div class="sources">Sources: ${sourceLinks}</div>` : ""}
+    </div>`;
+}
+
+function shortUrl(u) {
+  try { return new URL(u).hostname.replace(/^www\./, ""); }
+  catch (_) { return u.length > 50 ? u.slice(0, 50) + "…" : u; }
+}
+function escapeAttr(s) { return escapeHtml(s).replace(/"/g, "&quot;"); }
+
 function renderWatchlist() {
   const groups = [
     {
@@ -736,4 +932,5 @@ function renderAll() {
 }
 populateCategories();
 renderWatchlist();
+loadApiKey();
 renderAll();

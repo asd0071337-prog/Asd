@@ -224,8 +224,16 @@
     <div class="panel">
       <h3>Investment screener</h3>
       <p class="muted">
-        Score an individual stock or ETF using long-term value & quality signals. This is education, not advice —
-        every number you enter feeds a transparent score you can audit below.
+        Score an individual stock or ETF using long-term value & quality signals. Enter the numbers yourself, or
+        let AI look them up and write a plain-English analysis. Every number feeds a transparent score below.
+      </p>
+      <div class="ai-row">
+        <input type="text" id="ai-ticker" placeholder="Ticker (e.g. MSFT)" />
+        <button id="ai-lookup" class="primary">Look up & analyze with AI</button>
+        <span id="ai-status" class="muted"></span>
+      </div>
+      <p class="muted" id="ai-hint">
+        Needs an Anthropic API key — add yours in Settings. Each lookup uses web search and typically costs a few cents.
       </p>
       <form id="screen-form" class="grid-screen">
         <label>Ticker <input type="text" id="s-ticker" placeholder="e.g. MSFT" required /></label>
@@ -238,6 +246,7 @@
         <label>Industry moat <select id="s-moat"><option value="wide">Wide</option><option value="narrow" selected>Narrow</option><option value="none">None</option></select></label>
         <button type="submit" class="primary">Score it</button>
       </form>
+      <div id="ai-analysis"></div>
       <div id="screen-out"></div>
     </div>
 
@@ -266,6 +275,25 @@
         <button id="wipe-btn" class="danger">Erase everything</button>
       </div>
     </div>
+    <div class="panel">
+      <h3>AI lookup</h3>
+      <p class="muted">
+        The screener's "Look up & analyze with AI" button uses your own Anthropic API key to call Claude with
+        web search. Your key is stored only in this browser's localStorage and sent directly to api.anthropic.com —
+        it never touches any other server. Get a key at <span class="mono">console.anthropic.com</span>.
+      </p>
+      <div class="row-form">
+        <input type="password" id="api-key" placeholder="sk-ant-..." autocomplete="off" style="flex: 1 1 320px;" />
+        <select id="ai-model">
+          <option value="claude-opus-4-7">Claude Opus 4.7 (best, pricier)</option>
+          <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (faster, cheaper)</option>
+        </select>
+        <button id="api-key-save" class="primary">Save</button>
+        <button id="api-key-clear" class="ghost">Remove</button>
+      </div>
+      <p class="muted" id="api-key-status"></p>
+    </div>
+
     <div class="panel">
       <h3>About the scoring</h3>
       <p>
