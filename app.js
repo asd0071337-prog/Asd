@@ -1,0 +1,739 @@
+// Asd Finance — single-file vanilla JS app.
+// Data is persisted in localStorage. No data leaves the browser except an optional
+// stock-quote fetch to a public CSV endpoint when the user clicks "Refresh prices".
+
+const KEY = "asd-finance:v1";
+
+const DEFAULT_CATEGORIES = [
+  "Housing", "Groceries", "Dining", "Transport", "Utilities", "Health",
+  "Entertainment", "Shopping", "Travel", "Subscriptions", "Other"
+];
+
+const DEFAULT_BUDGETS = {
+  Housing: 1500, Groceries: 500, Dining: 200, Transport: 200,
+  Utilities: 200, Entertainment: 100, Subscriptions: 60
+};
+
+const fmt = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+const fmt0 = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const pct = (n) => (n >= 0 ? "+" : "") + n.toFixed(1) + "%";
+
+const STATE = load();
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* fall through */ }
+  return {
+    transactions: [],
+    budgets: { ...DEFAULT_BUDGETS },
+    categories: [...DEFAULT_CATEGORIES],
+    goals: [],
+    holdings: [],
+    settings: { currency: "USD" },
+  };
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(STATE)); }
+
+// ---------------- Tabs ----------------
+document.getElementById("tabs").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-tab]");
+  if (!btn) return;
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b === btn));
+  const tab = btn.dataset.tab;
+  document.querySelectorAll(".tab").forEach(s => s.classList.toggle("active", s.id === `tab-${tab}`));
+  // Re-render charts on tab show (canvas needs visible parent)
+  if (tab === "dashboard") renderDashboard();
+  if (tab === "invest") renderInvest();
+});
+
+// ---------------- Transactions ----------------
+const txForm = document.getElementById("tx-form");
+const txDate = document.getElementById("tx-date");
+const txDesc = document.getElementById("tx-desc");
+const txAmt = document.getElementById("tx-amt");
+const txType = document.getElementById("tx-type");
+const txCat = document.getElementById("tx-cat");
+const txBody = document.getElementById("tx-body");
+const txEmpty = document.getElementById("tx-empty");
+const txFilter = document.getElementById("tx-filter-month");
+
+txDate.value = new Date().toISOString().slice(0, 10);
+
+function populateCategories() {
+  txCat.innerHTML = STATE.categories.map(c => `<option>${c}</option>`).join("");
+}
+
+txForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const tx = {
+    id: crypto.randomUUID(),
+    date: txDate.value,
+    type: txType.value,
+    desc: txDesc.value.trim(),
+    cat: txType.value === "income" ? "Income" : txCat.value,
+    amt: parseFloat(txAmt.value),
+  };
+  if (!tx.desc || !(tx.amt > 0)) return;
+  STATE.transactions.push(tx);
+  save();
+  txDesc.value = ""; txAmt.value = "";
+  renderAll();
+});
+
+document.getElementById("tx-clear").addEventListener("click", () => {
+  if (!confirm("Erase all transactions?")) return;
+  STATE.transactions = [];
+  save();
+  renderAll();
+});
+
+function renderTransactions() {
+  populateCategories();
+  // Build month options
+  const months = new Set(STATE.transactions.map(t => t.date.slice(0, 7)));
+  const cur = new Date().toISOString().slice(0, 7);
+  months.add(cur);
+  const sorted = [...months].sort().reverse();
+  const prev = txFilter.value || cur;
+  txFilter.innerHTML = `<option value="all">All months</option>` +
+    sorted.map(m => `<option value="${m}" ${m === prev ? "selected" : ""}>${m}</option>`).join("");
+
+  const filter = txFilter.value;
+  const rows = STATE.transactions
+    .filter(t => filter === "all" || t.date.startsWith(filter))
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  txEmpty.style.display = rows.length ? "none" : "block";
+  txBody.innerHTML = rows.map(t => {
+    const sign = t.type === "income" ? "+" : "−";
+    const cls = t.type === "income" ? "pos" : "";
+    return `<tr>
+      <td>${t.date}</td>
+      <td>${t.type}</td>
+      <td>${escapeHtml(t.desc)}</td>
+      <td>${escapeHtml(t.cat)}</td>
+      <td class="right ${cls}">${sign}${fmt.format(t.amt)}</td>
+      <td><button class="del" data-id="${t.id}" title="Delete">✕</button></td>
+    </tr>`;
+  }).join("");
+  txBody.querySelectorAll(".del").forEach(b => b.addEventListener("click", () => {
+    STATE.transactions = STATE.transactions.filter(t => t.id !== b.dataset.id);
+    save(); renderAll();
+  }));
+}
+txFilter.addEventListener("change", () => { renderTransactions(); });
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
+}
+
+// ---------------- Budget ----------------
+const budgetRows = document.getElementById("budget-rows");
+document.getElementById("bcat-add").addEventListener("click", () => {
+  const name = document.getElementById("bcat-name").value.trim();
+  const amt = parseFloat(document.getElementById("bcat-amt").value);
+  if (!name || !(amt >= 0)) return;
+  STATE.budgets[name] = amt;
+  if (!STATE.categories.includes(name)) STATE.categories.push(name);
+  document.getElementById("bcat-name").value = "";
+  document.getElementById("bcat-amt").value = "";
+  save(); renderAll();
+});
+
+function renderBudget() {
+  const month = new Date().toISOString().slice(0, 7);
+  const spendByCat = {};
+  STATE.transactions
+    .filter(t => t.type === "expense" && t.date.startsWith(month))
+    .forEach(t => { spendByCat[t.cat] = (spendByCat[t.cat] || 0) + t.amt; });
+
+  const cats = Object.keys(STATE.budgets);
+  if (!cats.length) {
+    budgetRows.innerHTML = `<p class="muted">No budget categories yet. Add one below.</p>`;
+    return;
+  }
+  budgetRows.innerHTML = cats.map(cat => {
+    const limit = STATE.budgets[cat];
+    const spent = spendByCat[cat] || 0;
+    const ratio = limit > 0 ? Math.min(1.2, spent / limit) : 0;
+    const over = ratio > 1;
+    return `<div class="budget-row">
+      <div><b>${escapeHtml(cat)}</b><div class="meta">${fmt.format(spent)} of ${fmt.format(limit)}</div></div>
+      <div class="meta">${limit > 0 ? Math.round((spent / limit) * 100) + "%" : "—"}</div>
+      <div class="bar ${over ? "over" : ""}"><span style="width:${Math.min(100, ratio * 100)}%"></span></div>
+      <button class="del" data-cat="${escapeHtml(cat)}" title="Remove">✕</button>
+    </div>`;
+  }).join("");
+  budgetRows.querySelectorAll(".del").forEach(b => b.addEventListener("click", () => {
+    delete STATE.budgets[b.dataset.cat];
+    save(); renderAll();
+  }));
+}
+
+// ---------------- Goals ----------------
+const goalForm = document.getElementById("goal-form");
+goalForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const g = {
+    id: crypto.randomUUID(),
+    name: document.getElementById("goal-name").value.trim(),
+    target: parseFloat(document.getElementById("goal-target").value),
+    current: parseFloat(document.getElementById("goal-current").value) || 0,
+    date: document.getElementById("goal-date").value,
+  };
+  if (!g.name || !(g.target > 0)) return;
+  STATE.goals.push(g); save(); goalForm.reset(); renderGoals();
+});
+
+function renderGoals() {
+  const list = document.getElementById("goal-list");
+  if (!STATE.goals.length) {
+    list.innerHTML = `<p class="muted">No goals yet. Try "Emergency fund" — 3–6 months of expenses is a great first target.</p>`;
+    return;
+  }
+  list.innerHTML = STATE.goals.map(g => {
+    const pctDone = Math.min(100, (g.current / g.target) * 100);
+    const remaining = Math.max(0, g.target - g.current);
+    let suffix = "";
+    if (g.date) {
+      const months = Math.max(1, Math.round((new Date(g.date) - new Date()) / (1000*60*60*24*30)));
+      const perMonth = remaining / months;
+      suffix = ` · save ${fmt0.format(perMonth)}/mo to hit ${g.date}`;
+    }
+    return `<div class="goal">
+      <div class="row"><h4>${escapeHtml(g.name)}</h4>
+        <button class="del" data-id="${g.id}">✕</button></div>
+      <div class="meta muted">${fmt.format(g.current)} / ${fmt.format(g.target)}${suffix}</div>
+      <div class="bar"><span style="width:${pctDone}%"></span></div>
+      <div class="row" style="margin-top:0.5rem; gap:0.5rem;">
+        <input type="number" placeholder="Add savings $" step="0.01" min="0" data-add="${g.id}" style="flex:1; background:var(--panel); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:0.4rem 0.5rem;"/>
+        <button class="ghost" data-add-btn="${g.id}">Add</button>
+      </div>
+    </div>`;
+  }).join("");
+  list.querySelectorAll(".del").forEach(b => b.addEventListener("click", () => {
+    STATE.goals = STATE.goals.filter(g => g.id !== b.dataset.id); save(); renderGoals();
+  }));
+  list.querySelectorAll("[data-add-btn]").forEach(b => b.addEventListener("click", () => {
+    const id = b.dataset.addBtn;
+    const inp = list.querySelector(`[data-add="${id}"]`);
+    const amt = parseFloat(inp.value);
+    if (!(amt > 0)) return;
+    const g = STATE.goals.find(x => x.id === id);
+    g.current += amt; save(); renderGoals();
+  }));
+}
+
+// ---------------- Investing ----------------
+const holdForm = document.getElementById("hold-form");
+holdForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const h = {
+    id: crypto.randomUUID(),
+    ticker: document.getElementById("hold-ticker").value.trim().toUpperCase(),
+    shares: parseFloat(document.getElementById("hold-shares").value),
+    cost: parseFloat(document.getElementById("hold-cost").value),
+    klass: document.getElementById("hold-class").value,
+    price: null,
+  };
+  if (!h.ticker || !(h.shares > 0)) return;
+  h.price = h.cost; // default until refreshed
+  STATE.holdings.push(h); save();
+  holdForm.reset();
+  renderInvest();
+});
+
+document.getElementById("refresh-prices").addEventListener("click", refreshPrices);
+
+async function refreshPrices() {
+  const btn = document.getElementById("refresh-prices");
+  if (!STATE.holdings.length) return;
+  btn.disabled = true; btn.textContent = "Refreshing…";
+  let updated = 0, failed = 0;
+  for (const h of STATE.holdings) {
+    if (h.klass === "Cash") { h.price = 1; updated++; continue; }
+    const p = await fetchQuote(h.ticker);
+    if (p != null && isFinite(p) && p > 0) { h.price = p; updated++; }
+    else { failed++; }
+  }
+  save();
+  btn.disabled = false; btn.textContent = "Refresh prices";
+  renderInvest();
+  if (failed > 0) {
+    alert(`Updated ${updated} of ${STATE.holdings.length} holdings. ${failed} ticker(s) couldn't be fetched (network blocked or unknown symbol). Existing prices kept.`);
+  }
+}
+
+async function fetchQuote(ticker) {
+  // Stooq publishes a CSV last-quote endpoint that's CORS-friendly.
+  // Symbols: US tickers are suffixed ".us"; crypto like "btcusd"; etc.
+  const sym = mapToStooq(ticker);
+  const url = `https://stooq.com/q/l/?s=${encodeURIComponent(sym)}&f=sd2t2ohlcv&h&e=csv`;
+  try {
+    const r = await fetch(url, { mode: "cors" });
+    if (!r.ok) return null;
+    const txt = await r.text();
+    const lines = txt.trim().split(/\r?\n/);
+    if (lines.length < 2) return null;
+    const header = lines[0].toLowerCase().split(",");
+    const row = lines[1].split(",");
+    const closeIdx = header.indexOf("close");
+    if (closeIdx < 0) return null;
+    const close = parseFloat(row[closeIdx]);
+    return isFinite(close) ? close : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function mapToStooq(t) {
+  const x = t.toLowerCase();
+  if (/^(btc|eth|sol|ada|xrp|doge|dot|ltc)$/.test(x)) return `${x}usd`;
+  if (x.includes(".")) return x; // user gave their own suffix
+  return `${x}.us`;
+}
+
+function renderInvest() {
+  const body = document.getElementById("hold-body");
+  const empty = document.getElementById("hold-empty");
+  empty.style.display = STATE.holdings.length ? "none" : "block";
+  let totalVal = 0, totalCost = 0;
+  body.innerHTML = STATE.holdings.map(h => {
+    const price = h.price ?? h.cost;
+    const value = price * h.shares;
+    const basis = h.cost * h.shares;
+    const pl = value - basis;
+    const plPct = basis > 0 ? (pl / basis) * 100 : 0;
+    totalVal += value; totalCost += basis;
+    return `<tr>
+      <td><b>${escapeHtml(h.ticker)}</b></td>
+      <td>${escapeHtml(h.klass)}</td>
+      <td class="right">${h.shares.toLocaleString(undefined,{maximumFractionDigits:4})}</td>
+      <td class="right">${fmt.format(h.cost)}</td>
+      <td class="right">${fmt.format(price)}</td>
+      <td class="right">${fmt.format(value)}</td>
+      <td class="right ${pl>=0?"pos":"neg"}">${fmt.format(pl)} (${pct(plPct)})</td>
+      <td><button class="del" data-id="${h.id}">✕</button></td>
+    </tr>`;
+  }).join("");
+  body.querySelectorAll(".del").forEach(b => b.addEventListener("click", () => {
+    STATE.holdings = STATE.holdings.filter(h => h.id !== b.dataset.id);
+    save(); renderInvest(); renderDashboard();
+  }));
+
+  document.getElementById("port-value").textContent = fmt.format(totalVal);
+  document.getElementById("port-cost").textContent = fmt.format(totalCost);
+  const gain = totalVal - totalCost;
+  const gainEl = document.getElementById("port-gain");
+  gainEl.textContent = fmt.format(gain);
+  gainEl.classList.toggle("pos", gain >= 0);
+  gainEl.classList.toggle("neg", gain < 0);
+  document.getElementById("port-gain-pct").textContent = totalCost > 0 ? pct((gain / totalCost) * 100) : "";
+
+  // Diversification: based on class counts and Herfindahl across classes.
+  const byClass = {};
+  STATE.holdings.forEach(h => {
+    const v = (h.price ?? h.cost) * h.shares;
+    byClass[h.klass] = (byClass[h.klass] || 0) + v;
+  });
+  const total = Object.values(byClass).reduce((a,b)=>a+b, 0);
+  let h2 = 0;
+  Object.values(byClass).forEach(v => { const s = total ? v/total : 0; h2 += s*s; });
+  // Effective number of asset classes (1/Herfindahl). Map to A–F grade.
+  const eff = h2 ? 1/h2 : 0;
+  const grade = eff >= 4 ? "A" : eff >= 3 ? "B" : eff >= 2 ? "C" : eff >= 1.4 ? "D" : eff > 0 ? "E" : "—";
+  document.getElementById("port-div").textContent = grade;
+
+  drawAlloc(byClass);
+}
+
+let allocChart;
+function drawAlloc(byClass) {
+  const ctx = document.getElementById("chart-alloc");
+  if (!ctx || typeof Chart === "undefined") return;
+  const labels = Object.keys(byClass);
+  const data = Object.values(byClass);
+  if (allocChart) allocChart.destroy();
+  allocChart = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: ["#6ee7b7","#60a5fa","#a78bfa","#f472b6","#fbbf24","#f87171","#34d399","#93c5fd"],
+        borderColor: "#131a30",
+      }]
+    },
+    options: { plugins: { legend: { labels: { color: "#e6e9f5" } } } }
+  });
+}
+
+// ---------------- Risk profile -> allocation ----------------
+document.getElementById("risk-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const age = parseInt(document.getElementById("r-age").value, 10) || 30;
+  const horizon = parseInt(document.getElementById("r-horizon").value, 10);
+  const risk = document.getElementById("r-risk").value;
+  const stable = document.getElementById("r-income").value === "stable";
+
+  // Base equity % from a "110 minus age" rule, then adjust for risk + horizon.
+  let equity = Math.max(20, Math.min(95, 110 - age));
+  if (risk === "low") equity -= 15;
+  if (risk === "high") equity += 10;
+  if (horizon <= 3) equity = Math.min(equity, 40);
+  if (horizon >= 25) equity += 5;
+  if (!stable) equity -= 5;
+  equity = Math.max(20, Math.min(95, equity));
+
+  const bonds = Math.round((100 - equity) * 0.8);
+  const cash = 100 - equity - bonds; // remainder
+  const usEq = Math.round(equity * 0.65);
+  const intlEq = equity - usEq;
+
+  const out = document.getElementById("risk-out");
+  out.innerHTML = `
+    <div class="score-card good" style="margin-top:0.75rem;">
+      <div>Suggested target allocation</div>
+      <div class="score-breakdown">
+        <div><b>${usEq}%</b><span class="muted">US stocks (e.g. <code>VTI</code>, <code>ITOT</code>)</span></div>
+        <div><b>${intlEq}%</b><span class="muted">International stocks (e.g. <code>VXUS</code>, <code>IXUS</code>)</span></div>
+        <div><b>${bonds}%</b><span class="muted">Bonds (e.g. <code>BND</code>, <code>AGG</code>)</span></div>
+        <div><b>${cash}%</b><span class="muted">Cash / T-bills (e.g. <code>SGOV</code>, <code>BIL</code>)</span></div>
+      </div>
+      <p class="muted" style="margin:0.6rem 0 0;">Rule of thumb only. Rebalance once a year. Hold an emergency fund (3–6 months of expenses) separately.</p>
+    </div>`;
+});
+
+// ---------------- Screener ----------------
+document.getElementById("screen-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const t = document.getElementById("s-ticker").value.trim().toUpperCase();
+  const pe = parseFloat(document.getElementById("s-pe").value);
+  const growth = parseFloat(document.getElementById("s-growth").value);
+  const dividend = parseFloat(document.getElementById("s-div").value);
+  const de = parseFloat(document.getElementById("s-de").value);
+  const roe = parseFloat(document.getElementById("s-roe").value);
+  const fcf = document.getElementById("s-fcf").value;
+  const moat = document.getElementById("s-moat").value;
+
+  // Each sub-score is 0–100; weighted to a final 0–100.
+  const parts = [];
+  function part(label, score, weight, note) {
+    parts.push({ label, score: Math.max(0, Math.min(100, score)), weight, note });
+  }
+
+  if (isFinite(pe)) {
+    let s;
+    if (pe <= 0) s = 20;
+    else if (pe < 10) s = 95;
+    else if (pe < 18) s = 80;
+    else if (pe < 25) s = 60;
+    else if (pe < 35) s = 40;
+    else if (pe < 60) s = 25;
+    else s = 10;
+    part("Value (P/E)", s, 0.18, `P/E ${pe} — ${pe < 18 ? "reasonable" : pe < 30 ? "growthy" : "expensive"}`);
+  }
+  if (isFinite(growth)) {
+    const s = growth >= 20 ? 95 : growth >= 10 ? 80 : growth >= 5 ? 65 : growth >= 0 ? 45 : 15;
+    part("Growth", s, 0.20, `${growth}%/yr earnings growth`);
+  }
+  if (isFinite(roe)) {
+    const s = roe >= 25 ? 95 : roe >= 15 ? 80 : roe >= 10 ? 65 : roe >= 5 ? 45 : 20;
+    part("Profitability (ROE)", s, 0.17, `ROE ${roe}%`);
+  }
+  if (isFinite(de)) {
+    const s = de <= 0.3 ? 95 : de <= 0.6 ? 80 : de <= 1 ? 65 : de <= 1.5 ? 45 : de <= 2.5 ? 25 : 10;
+    part("Balance sheet (D/E)", s, 0.15, `Debt/Equity ${de}`);
+  }
+  if (isFinite(dividend)) {
+    const s = dividend === 0 ? 50 : dividend < 1 ? 55 : dividend < 3 ? 80 : dividend < 5 ? 75 : dividend < 8 ? 55 : 30;
+    part("Shareholder yield", s, 0.10, `${dividend}% dividend${dividend > 8 ? " (suspiciously high)" : ""}`);
+  }
+  const fcfScore = fcf === "yes" ? 90 : fcf === "flat" ? 55 : 20;
+  part("Cash generation", fcfScore, 0.10, `Free cash flow ${fcf === "yes" ? "growing" : fcf}`);
+  const moatScore = moat === "wide" ? 95 : moat === "narrow" ? 65 : 30;
+  part("Moat", moatScore, 0.10, `${moat} competitive advantage`);
+
+  const totalW = parts.reduce((a,b)=>a+b.weight, 0) || 1;
+  const final = parts.reduce((a,b)=>a + b.score * b.weight, 0) / totalW;
+
+  const verdict = final >= 75 ? { grade: "Strong", cls: "good" }
+                : final >= 55 ? { grade: "Decent", cls: "ok" }
+                : { grade: "Weak", cls: "bad" };
+
+  const out = document.getElementById("screen-out");
+  out.innerHTML = `
+    <div class="score-card ${verdict.cls}">
+      <div class="muted">${escapeHtml(t)} composite score</div>
+      <div class="big">${final.toFixed(0)} <span style="font-size:1rem; vertical-align: middle;">/ 100 · ${verdict.grade}</span></div>
+      <div class="score-breakdown">
+        ${parts.map(p => `<div><b>${p.label}: ${p.score.toFixed(0)}</b><span class="muted">${escapeHtml(p.note)} · weight ${(p.weight*100).toFixed(0)}%</span></div>`).join("")}
+      </div>
+      <p class="muted" style="margin-top:0.75rem;">
+        Reminder: a high score on these heuristics is a starting point, not a buy signal. Read the latest 10-K,
+        consider competitive risks, and never put more than you can hold through a 50% drawdown into a single stock.
+      </p>
+    </div>`;
+});
+
+function renderWatchlist() {
+  const groups = [
+    {
+      title: "Build a simple long-term core",
+      desc: "Two or three of these cover most of the global market at very low cost.",
+      items: [
+        ["VTI / ITOT", "Total US stock market"],
+        ["VXUS / IXUS", "Total international stocks"],
+        ["BND / AGG", "Total US bond market"],
+        ["SGOV / BIL", "Ultra-short T-bills (cash-like)"],
+      ]
+    },
+    {
+      title: "Targeted equity exposure",
+      desc: "Tilts you might add once you have a core.",
+      items: [
+        ["VOO / SPY", "S&P 500 (large US companies)"],
+        ["AVUV", "US small-cap value tilt"],
+        ["QQQM", "Nasdaq-100 (tech-heavy growth)"],
+        ["SCHD", "US dividend growers"],
+        ["VWO", "Emerging markets stocks"],
+      ]
+    },
+    {
+      title: "Defensive & diversifiers",
+      desc: "Useful when you want lower volatility or different return drivers.",
+      items: [
+        ["TLT", "Long US Treasuries"],
+        ["TIP", "Inflation-protected Treasuries"],
+        ["GLD / IAU", "Gold"],
+        ["VNQ", "US real estate (REITs)"],
+      ]
+    }
+  ];
+  const root = document.getElementById("watchlist");
+  root.innerHTML = `<div class="watch-grid">` + groups.map(g => `
+    <div class="watch">
+      <h4>${g.title}</h4>
+      <div class="muted">${g.desc}</div>
+      <ul>${g.items.map(([t, n]) => `<li><code>${t}</code> — ${n}</li>`).join("")}</ul>
+    </div>
+  `).join("") + `</div>`;
+}
+
+// ---------------- Dashboard ----------------
+let cashflowChart, catChart;
+function renderDashboard() {
+  // Net worth = cash (income - expense) + portfolio
+  const totalIncome = sum(STATE.transactions.filter(t => t.type === "income").map(t => t.amt));
+  const totalSpend = sum(STATE.transactions.filter(t => t.type === "expense").map(t => t.amt));
+  const portfolio = sum(STATE.holdings.map(h => (h.price ?? h.cost) * h.shares));
+  const networth = totalIncome - totalSpend + portfolio;
+  document.getElementById("kpi-networth").textContent = fmt.format(networth);
+
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const mi = sum(STATE.transactions.filter(t => t.type === "income" && t.date.startsWith(thisMonth)).map(t => t.amt));
+  const me = sum(STATE.transactions.filter(t => t.type === "expense" && t.date.startsWith(thisMonth)).map(t => t.amt));
+  document.getElementById("kpi-income").textContent = fmt.format(mi);
+  document.getElementById("kpi-spend").textContent = fmt.format(me);
+  const rate = mi > 0 ? ((mi - me) / mi) * 100 : 0;
+  document.getElementById("kpi-rate").textContent = mi > 0 ? rate.toFixed(0) + "%" : "—";
+
+  // Previous-month delta
+  const prev = previousMonth(thisMonth);
+  const piMi = sum(STATE.transactions.filter(t => t.type === "income" && t.date.startsWith(prev)).map(t => t.amt));
+  const piMe = sum(STATE.transactions.filter(t => t.type === "expense" && t.date.startsWith(prev)).map(t => t.amt));
+  const delta = (mi - me) - (piMi - piMe);
+  const deltaEl = document.getElementById("kpi-networth-delta");
+  if (piMi || piMe) {
+    deltaEl.textContent = (delta >= 0 ? "▲ " : "▼ ") + fmt.format(Math.abs(delta)) + " vs last month's net savings";
+    deltaEl.style.color = delta >= 0 ? "var(--accent)" : "var(--danger)";
+  } else { deltaEl.textContent = ""; }
+
+  // Charts
+  const months = lastNMonths(6);
+  const incomeByMonth = months.map(m => sum(STATE.transactions.filter(t => t.type==="income" && t.date.startsWith(m)).map(t => t.amt)));
+  const spendByMonth = months.map(m => sum(STATE.transactions.filter(t => t.type==="expense" && t.date.startsWith(m)).map(t => t.amt)));
+
+  if (typeof Chart !== "undefined") {
+    const ctx1 = document.getElementById("chart-cashflow");
+    if (cashflowChart) cashflowChart.destroy();
+    cashflowChart = new Chart(ctx1, {
+      type: "bar",
+      data: {
+        labels: months,
+        datasets: [
+          { label: "Income", data: incomeByMonth, backgroundColor: "#6ee7b7" },
+          { label: "Spend",  data: spendByMonth,  backgroundColor: "#f87171" },
+        ]
+      },
+      options: {
+        scales: {
+          x: { ticks: { color: "#8a92b2" }, grid: { color: "#232c4a" } },
+          y: { ticks: { color: "#8a92b2" }, grid: { color: "#232c4a" } }
+        },
+        plugins: { legend: { labels: { color: "#e6e9f5" } } }
+      }
+    });
+
+    const catSpend = {};
+    STATE.transactions
+      .filter(t => t.type === "expense" && t.date.startsWith(thisMonth))
+      .forEach(t => { catSpend[t.cat] = (catSpend[t.cat] || 0) + t.amt; });
+    const ctx2 = document.getElementById("chart-categories");
+    if (catChart) catChart.destroy();
+    catChart = new Chart(ctx2, {
+      type: "doughnut",
+      data: {
+        labels: Object.keys(catSpend),
+        datasets: [{
+          data: Object.values(catSpend),
+          backgroundColor: ["#6ee7b7","#60a5fa","#a78bfa","#f472b6","#fbbf24","#f87171","#34d399","#93c5fd","#fda4af","#c4b5fd","#fcd34d"],
+          borderColor: "#131a30"
+        }]
+      },
+      options: { plugins: { legend: { labels: { color: "#e6e9f5" } } } }
+    });
+  }
+
+  renderInsights({ mi, me, rate, networth, portfolio });
+}
+
+function renderInsights({ mi, me, rate, networth, portfolio }) {
+  const list = document.getElementById("insights");
+  const tips = [];
+
+  if (STATE.transactions.length === 0) {
+    tips.push({ k: "warn", t: "Add a few transactions so the app can spot patterns. Try seeding demo data from Settings to see what the dashboard looks like." });
+  }
+  if (mi > 0) {
+    if (rate < 0) tips.push({ k: "bad", t: `You're spending more than you earn this month. Look at your top 2 categories — even a 20% trim brings you back to neutral.` });
+    else if (rate < 10) tips.push({ k: "warn", t: `Savings rate is ${rate.toFixed(0)}%. The classic target is 20%+; even +5% compounds enormously over a decade.` });
+    else if (rate >= 20) tips.push({ k: "good", t: `Nice — ${rate.toFixed(0)}% savings rate is strong. Make sure the surplus is being invested, not just sitting in checking.` });
+  }
+  // Emergency fund check
+  const emergencyGoal = STATE.goals.find(g => /emergency/i.test(g.name));
+  const monthsExpense = me;
+  if (monthsExpense > 0 && !emergencyGoal) {
+    const target = monthsExpense * 4;
+    tips.push({ k: "warn", t: `No emergency fund goal yet. Aim for ~${fmt0.format(target)} (about 4 months of your spending) before adding risk in investments.` });
+  }
+  // Subscription hint
+  const subs = STATE.transactions.filter(t => t.type === "expense" && t.cat === "Subscriptions" && t.date.startsWith(new Date().toISOString().slice(0,7)));
+  if (subs.length >= 5) tips.push({ k: "warn", t: `You have ${subs.length} subscriptions this month. Cancelling the bottom one or two often saves more than the next pay-raise gives you.` });
+  // Concentration risk
+  if (STATE.holdings.length) {
+    const byClass = {};
+    let total = 0;
+    STATE.holdings.forEach(h => { const v = (h.price ?? h.cost)*h.shares; byClass[h.klass] = (byClass[h.klass]||0)+v; total += v; });
+    const max = Math.max(...Object.values(byClass));
+    if (total > 0 && max/total > 0.85) tips.push({ k: "warn", t: `Over 85% of your portfolio sits in one asset class. Adding a second class (e.g. bonds or international) cuts portfolio swings without giving up much long-run return.` });
+    // Single-name concentration
+    const byName = {};
+    STATE.holdings.forEach(h => { const v=(h.price??h.cost)*h.shares; byName[h.ticker]=(byName[h.ticker]||0)+v; });
+    const maxName = Object.entries(byName).sort((a,b)=>b[1]-a[1])[0];
+    if (maxName && total > 0 && maxName[1]/total > 0.25) {
+      tips.push({ k: "warn", t: `${maxName[0]} is ${Math.round(maxName[1]/total*100)}% of your portfolio. A single stock above ~10% is concentration risk worth understanding.` });
+    }
+    // Idle cash
+    const cashShare = (byClass["Cash"] || 0) / total;
+    if (total > 0 && cashShare > 0.30) tips.push({ k: "warn", t: `${Math.round(cashShare*100)}% of your portfolio is cash. Cash above an emergency fund tends to lose to inflation over time.` });
+  }
+  if (tips.length === 0) tips.push({ k: "good", t: "Looking good. Keep logging, keep investing, and check back monthly." });
+
+  list.innerHTML = tips.map(x => `<li class="${x.k === "good" ? "" : x.k}">${escapeHtml(x.t)}</li>`).join("");
+}
+
+function sum(arr) { return arr.reduce((a,b)=>a+b, 0); }
+function previousMonth(ym) {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(y, m - 2, 1);
+  return d.toISOString().slice(0, 7);
+}
+function lastNMonths(n) {
+  const out = [];
+  const now = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    out.push(d.toISOString().slice(0, 7));
+  }
+  return out;
+}
+
+// ---------------- Settings ----------------
+document.getElementById("export-btn").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(STATE, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `asd-finance-${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); URL.revokeObjectURL(url);
+});
+
+document.getElementById("import-file").addEventListener("change", async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const txt = await f.text();
+    const data = JSON.parse(txt);
+    if (!data.transactions || !data.holdings) throw new Error("Not an Asd Finance backup.");
+    Object.assign(STATE, data); save(); renderAll();
+    alert("Imported.");
+  } catch (err) { alert("Import failed: " + err.message); }
+  e.target.value = "";
+});
+
+document.getElementById("wipe-btn").addEventListener("click", () => {
+  if (!confirm("Erase ALL data? This can't be undone.")) return;
+  localStorage.removeItem(KEY);
+  location.reload();
+});
+
+document.getElementById("seed-btn").addEventListener("click", () => {
+  if (STATE.transactions.length && !confirm("Replace existing data with demo data?")) return;
+  Object.assign(STATE, demoData());
+  save(); renderAll();
+});
+
+function demoData() {
+  const today = new Date();
+  const tx = [];
+  for (let i = 0; i < 5; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const ym = d.toISOString().slice(0, 7);
+    tx.push({ id: crypto.randomUUID(), date: ym + "-01", type: "income", desc: "Salary", cat: "Income", amt: 5200 });
+    tx.push({ id: crypto.randomUUID(), date: ym + "-02", type: "expense", desc: "Rent", cat: "Housing", amt: 1500 });
+    tx.push({ id: crypto.randomUUID(), date: ym + "-07", type: "expense", desc: "Groceries", cat: "Groceries", amt: 320 + Math.round(Math.random()*60) });
+    tx.push({ id: crypto.randomUUID(), date: ym + "-12", type: "expense", desc: "Restaurants", cat: "Dining", amt: 90 + Math.round(Math.random()*120) });
+    tx.push({ id: crypto.randomUUID(), date: ym + "-15", type: "expense", desc: "Electric", cat: "Utilities", amt: 78 });
+    tx.push({ id: crypto.randomUUID(), date: ym + "-18", type: "expense", desc: "Streaming", cat: "Subscriptions", amt: 45 });
+    tx.push({ id: crypto.randomUUID(), date: ym + "-22", type: "expense", desc: "Gas", cat: "Transport", amt: 60 });
+  }
+  return {
+    transactions: tx,
+    budgets: { ...DEFAULT_BUDGETS },
+    categories: [...DEFAULT_CATEGORIES],
+    goals: [
+      { id: crypto.randomUUID(), name: "Emergency fund", target: 10000, current: 4200, date: "" },
+      { id: crypto.randomUUID(), name: "Vacation", target: 3000, current: 800, date: new Date(today.getFullYear(), today.getMonth()+8, 1).toISOString().slice(0,10) },
+    ],
+    holdings: [
+      { id: crypto.randomUUID(), ticker: "VTI",  klass: "US Stocks",   shares: 12, cost: 230, price: 245 },
+      { id: crypto.randomUUID(), ticker: "VXUS", klass: "Intl Stocks", shares: 25, cost: 56,  price: 60 },
+      { id: crypto.randomUUID(), ticker: "BND",  klass: "Bonds",       shares: 30, cost: 72,  price: 71 },
+      { id: crypto.randomUUID(), ticker: "SGOV", klass: "Cash",        shares: 20, cost: 100, price: 100 },
+    ],
+    settings: { currency: "USD" },
+  };
+}
+
+// ---------------- Initial render ----------------
+function renderAll() {
+  renderTransactions();
+  renderBudget();
+  renderGoals();
+  renderInvest();
+  renderDashboard();
+}
+populateCategories();
+renderWatchlist();
+renderAll();

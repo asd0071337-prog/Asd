@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Asd Finance — smart money & investing</title>
+<link rel="stylesheet" href="styles.css" />
+<link rel="preconnect" href="https://cdn.jsdelivr.net" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">A</span>
+    <div>
+      <h1>Asd Finance</h1>
+      <p class="tag">Manage money. Find good investments. Stay private.</p>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="dashboard" class="active">Dashboard</button>
+    <button data-tab="transactions">Transactions</button>
+    <button data-tab="budget">Budget</button>
+    <button data-tab="goals">Goals</button>
+    <button data-tab="invest">Investing</button>
+    <button data-tab="screener">Screener</button>
+    <button data-tab="settings">Settings</button>
+  </nav>
+</header>
+
+<main>
+  <!-- DASHBOARD -->
+  <section id="tab-dashboard" class="tab active">
+    <div class="cards">
+      <div class="card">
+        <p class="card-label">Net worth</p>
+        <h2 id="kpi-networth">$0</h2>
+        <p class="muted" id="kpi-networth-delta"></p>
+      </div>
+      <div class="card">
+        <p class="card-label">This month income</p>
+        <h2 id="kpi-income">$0</h2>
+      </div>
+      <div class="card">
+        <p class="card-label">This month spend</p>
+        <h2 id="kpi-spend">$0</h2>
+      </div>
+      <div class="card accent">
+        <p class="card-label">Savings rate</p>
+        <h2 id="kpi-rate">—</h2>
+        <p class="muted">Income minus spend, divided by income.</p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <h3>Cash flow — last 6 months</h3>
+        <canvas id="chart-cashflow" height="180"></canvas>
+      </div>
+      <div class="panel">
+        <h3>Where your money went</h3>
+        <canvas id="chart-categories" height="180"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Insights</h3>
+      <ul id="insights" class="insights"></ul>
+    </div>
+  </section>
+
+  <!-- TRANSACTIONS -->
+  <section id="tab-transactions" class="tab">
+    <div class="panel">
+      <h3>Log a transaction</h3>
+      <form id="tx-form" class="row-form">
+        <input type="date" id="tx-date" required />
+        <select id="tx-type">
+          <option value="expense">Expense</option>
+          <option value="income">Income</option>
+        </select>
+        <input type="text" id="tx-desc" placeholder="Description (e.g. Groceries)" required />
+        <select id="tx-cat"></select>
+        <input type="number" id="tx-amt" placeholder="Amount" step="0.01" min="0" required />
+        <button type="submit" class="primary">Add</button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>History</h3>
+        <div class="row-controls">
+          <select id="tx-filter-month"></select>
+          <button id="tx-clear" class="ghost">Clear all</button>
+        </div>
+      </div>
+      <table class="tbl">
+        <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Category</th><th class="right">Amount</th><th></th></tr></thead>
+        <tbody id="tx-body"></tbody>
+      </table>
+      <p id="tx-empty" class="muted">No transactions yet. Add one above to get started.</p>
+    </div>
+  </section>
+
+  <!-- BUDGET -->
+  <section id="tab-budget" class="tab">
+    <div class="panel">
+      <h3>Monthly budget</h3>
+      <p class="muted">Set a monthly cap per category. We'll track this month's actuals against it.</p>
+      <div id="budget-rows" class="budget-rows"></div>
+      <div class="row-form" style="margin-top:1rem;">
+        <input type="text" id="bcat-name" placeholder="New category" />
+        <input type="number" id="bcat-amt" placeholder="Monthly limit" step="0.01" min="0" />
+        <button id="bcat-add" class="primary">Add category</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- GOALS -->
+  <section id="tab-goals" class="tab">
+    <div class="panel">
+      <h3>Savings goals</h3>
+      <form id="goal-form" class="row-form">
+        <input type="text" id="goal-name" placeholder="Goal (e.g. Emergency fund)" required />
+        <input type="number" id="goal-target" placeholder="Target $" step="0.01" min="0" required />
+        <input type="number" id="goal-current" placeholder="Saved so far $" step="0.01" min="0" />
+        <input type="date" id="goal-date" />
+        <button type="submit" class="primary">Add goal</button>
+      </form>
+      <div id="goal-list" class="goal-list"></div>
+    </div>
+  </section>
+
+  <!-- INVESTING -->
+  <section id="tab-invest" class="tab">
+    <div class="cards">
+      <div class="card">
+        <p class="card-label">Portfolio value</p>
+        <h2 id="port-value">$0</h2>
+      </div>
+      <div class="card">
+        <p class="card-label">Cost basis</p>
+        <h2 id="port-cost">$0</h2>
+      </div>
+      <div class="card accent">
+        <p class="card-label">Total gain/loss</p>
+        <h2 id="port-gain">—</h2>
+        <p class="muted" id="port-gain-pct"></p>
+      </div>
+      <div class="card">
+        <p class="card-label">Diversification</p>
+        <h2 id="port-div">—</h2>
+        <p class="muted">Higher means better spread across asset classes.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Holdings</h3>
+        <button id="refresh-prices" class="ghost">Refresh prices</button>
+      </div>
+      <form id="hold-form" class="row-form">
+        <input type="text" id="hold-ticker" placeholder="Ticker (e.g. VTI)" required />
+        <input type="number" id="hold-shares" placeholder="Shares" step="0.0001" min="0" required />
+        <input type="number" id="hold-cost" placeholder="Avg cost per share" step="0.01" min="0" required />
+        <select id="hold-class">
+          <option value="US Stocks">US Stocks</option>
+          <option value="Intl Stocks">Intl Stocks</option>
+          <option value="Bonds">Bonds</option>
+          <option value="Real Estate">Real Estate</option>
+          <option value="Crypto">Crypto</option>
+          <option value="Cash">Cash</option>
+          <option value="Other">Other</option>
+        </select>
+        <button type="submit" class="primary">Add holding</button>
+      </form>
+      <table class="tbl">
+        <thead><tr><th>Ticker</th><th>Class</th><th class="right">Shares</th><th class="right">Avg cost</th><th class="right">Price</th><th class="right">Value</th><th class="right">P/L</th><th></th></tr></thead>
+        <tbody id="hold-body"></tbody>
+      </table>
+      <p id="hold-empty" class="muted">No holdings yet. Add a ticker above. Prices update from a free public quote feed when you click Refresh.</p>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <h3>Allocation</h3>
+        <canvas id="chart-alloc" height="180"></canvas>
+      </div>
+      <div class="panel">
+        <h3>Recommended allocation</h3>
+        <p class="muted">Answer 4 quick questions; we'll suggest a target mix.</p>
+        <form id="risk-form" class="risk-form">
+          <label>Age <input type="number" id="r-age" min="18" max="100" value="30" /></label>
+          <label>Years until you need the money
+            <select id="r-horizon">
+              <option value="3">Under 5 years</option>
+              <option value="10" selected>5–15 years</option>
+              <option value="25">15+ years</option>
+            </select>
+          </label>
+          <label>Risk comfort
+            <select id="r-risk">
+              <option value="low">Low — I dislike big drops</option>
+              <option value="med" selected>Medium — some swings OK</option>
+              <option value="high">High — I can ride out a 40% drop</option>
+            </select>
+          </label>
+          <label>Income stability
+            <select id="r-income">
+              <option value="stable" selected>Stable</option>
+              <option value="variable">Variable</option>
+            </select>
+          </label>
+          <button type="submit" class="primary">Suggest mix</button>
+        </form>
+        <div id="risk-out"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCREENER -->
+  <section id="tab-screener" class="tab">
+    <div class="panel">
+      <h3>Investment screener</h3>
+      <p class="muted">
+        Score an individual stock or ETF using long-term value & quality signals. This is education, not advice —
+        every number you enter feeds a transparent score you can audit below.
+      </p>
+      <form id="screen-form" class="grid-screen">
+        <label>Ticker <input type="text" id="s-ticker" placeholder="e.g. MSFT" required /></label>
+        <label>P/E ratio <input type="number" id="s-pe" step="0.1" min="0" /></label>
+        <label>Earnings growth (5y, %/yr) <input type="number" id="s-growth" step="0.1" /></label>
+        <label>Dividend yield (%) <input type="number" id="s-div" step="0.01" min="0" /></label>
+        <label>Debt / Equity <input type="number" id="s-de" step="0.01" min="0" /></label>
+        <label>Return on equity (%) <input type="number" id="s-roe" step="0.1" /></label>
+        <label>Free cash flow growing? <select id="s-fcf"><option value="yes">Yes</option><option value="flat">Flat</option><option value="no">No</option></select></label>
+        <label>Industry moat <select id="s-moat"><option value="wide">Wide</option><option value="narrow" selected>Narrow</option><option value="none">None</option></select></label>
+        <button type="submit" class="primary">Score it</button>
+      </form>
+      <div id="screen-out"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Starter watchlist by goal</h3>
+      <p class="muted">Common low-cost ETFs grouped by what people typically use them for. Not personalized advice.</p>
+      <div id="watchlist"></div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="tab-settings" class="tab">
+    <div class="panel">
+      <h3>Your data, your device</h3>
+      <p class="muted">
+        Everything is stored in this browser's localStorage. Nothing is uploaded. Clearing your browser data
+        clears the app. Use export/import to back up or move to another device.
+      </p>
+      <div class="row-form">
+        <button id="export-btn" class="ghost">Export data (JSON)</button>
+        <label class="ghost btn-like">
+          Import data
+          <input type="file" id="import-file" accept="application/json" hidden />
+        </label>
+        <button id="seed-btn" class="ghost">Load demo data</button>
+        <button id="wipe-btn" class="danger">Erase everything</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>About the scoring</h3>
+      <p>
+        The screener uses a transparent weighted-score across value (P/E), growth, profitability (ROE),
+        leverage (Debt/Equity), shareholder returns (dividend), cash generation, and moat. The exact weights
+        are visible in the breakdown that appears below your result.
+      </p>
+      <p class="muted">
+        Quote refresh tries a public Stooq CSV endpoint; if it's blocked by your network, the app falls back to
+        the prices you've entered manually.
+      </p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>Built for you. Private by design. Not financial advice.</span>
+</footer>
+</body>
+</html>
