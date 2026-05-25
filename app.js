@@ -11,6 +11,28 @@ const DEFAULT_CATEGORIES = [
   "Entertainment", "Shopping", "Travel", "Subscriptions", "Other"
 ];
 
+const CATEGORY_COLORS = {
+  Income:        "#6ee7b7",
+  Housing:       "#60a5fa",
+  Groceries:     "#34d399",
+  Dining:        "#fb923c",
+  Transport:     "#22d3ee",
+  Utilities:     "#c4b5fd",
+  Health:        "#f472b6",
+  Entertainment: "#a78bfa",
+  Shopping:      "#f87171",
+  Travel:        "#2dd4bf",
+  Subscriptions: "#818cf8",
+  Other:         "#94a3b8",
+};
+function catColor(cat) {
+  if (CATEGORY_COLORS[cat]) return CATEGORY_COLORS[cat];
+  // Hash any custom category name to a hue
+  let h = 0;
+  for (let i = 0; i < cat.length; i++) h = (h * 31 + cat.charCodeAt(i)) | 0;
+  return `hsl(${Math.abs(h) % 360}, 75%, 68%)`;
+}
+
 const DEFAULT_BUDGETS = {
   Housing: 250000, Groceries: 100000, Dining: 40000, Transport: 30000,
   Utilities: 25000, Entertainment: 20000, Subscriptions: 10000
@@ -142,7 +164,7 @@ function renderTransactions() {
       <td>${t.date}</td>
       <td>${t.type}</td>
       <td>${escapeHtml(t.desc)}</td>
-      <td>${escapeHtml(t.cat)}</td>
+      <td><span class="cat-dot" style="background:${catColor(t.cat)}; color:${catColor(t.cat)};"></span>${escapeHtml(t.cat)}</td>
       <td class="right ${cls}">${sign}${fmt.format(t.amt)}</td>
       <td class="row-actions">
         <button class="icon-btn edit" data-edit="${t.id}" title="Edit">✎</button>
@@ -206,11 +228,13 @@ function renderBudget() {
     const spent = spendByCat[cat] || 0;
     const ratio = limit > 0 ? Math.min(1.2, spent / limit) : 0;
     const over = ratio > 1;
+    const color = catColor(cat);
+    const barStyle = over ? "" : `background: linear-gradient(90deg, ${color} 0%, ${color}cc 100%); box-shadow: 0 0 18px ${color}66;`;
     return `<div class="budget-row">
-      <div><b>${escapeHtml(cat)}</b><div class="meta">${fmt.format(spent)} of ${fmt.format(limit)}</div></div>
+      <div><span class="cat-dot" style="background:${color}; color:${color};"></span><b>${escapeHtml(cat)}</b><div class="meta">${fmt.format(spent)} of ${fmt.format(limit)}</div></div>
       <div class="meta">${limit > 0 ? Math.round((spent / limit) * 100) + "%" : "—"}</div>
-      <div class="bar ${over ? "over" : ""}"><span style="width:${Math.min(100, ratio * 100)}%"></span></div>
-      <button class="del" data-cat="${escapeHtml(cat)}" title="Remove">✕</button>
+      <div class="bar ${over ? "over" : ""}"><span style="width:${Math.min(100, ratio * 100)}%; ${barStyle}"></span></div>
+      <button class="icon-btn del" data-cat="${escapeHtml(cat)}" title="Remove">✕</button>
     </div>`;
   }).join("");
   budgetRows.querySelectorAll(".del").forEach(b => b.addEventListener("click", () => {
@@ -874,15 +898,16 @@ function renderDashboard() {
     STATE.transactions
       .filter(t => t.type === "expense" && t.date.startsWith(thisMonth))
       .forEach(t => { catSpend[t.cat] = (catSpend[t.cat] || 0) + t.amt; });
+    const catLabels = Object.keys(catSpend);
     const ctx2 = document.getElementById("chart-categories");
     if (catChart) catChart.destroy();
     catChart = new Chart(ctx2, {
       type: "doughnut",
       data: {
-        labels: Object.keys(catSpend),
+        labels: catLabels,
         datasets: [{
           data: Object.values(catSpend),
-          backgroundColor: CHART_PALETTE,
+          backgroundColor: catLabels.map(catColor),
           borderColor: CHART_BORDER,
           borderWidth: 2,
           hoverOffset: 8,

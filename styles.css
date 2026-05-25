@@ -144,10 +144,17 @@ body::after {
 .tabs button.active::after {
   content: '';
   position: absolute;
-  left: 1rem; right: 1rem; bottom: -1px;
-  height: 2px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  left: 0.8rem; right: 0.8rem; bottom: -1px;
+  height: 2.5px;
+  background: linear-gradient(90deg, #6ee7b7, #60a5fa, #c4b5fd, #f472b6, #fb923c, #fbbf24);
+  background-size: 300% 100%;
   border-radius: 2px;
+  animation: rainbow-slide 6s linear infinite;
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.4);
+}
+@keyframes rainbow-slide {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
 }
 
 main {
@@ -218,6 +225,68 @@ main {
 .card.accent {
   background: linear-gradient(160deg, rgba(110, 231, 183, 0.16) 0%, var(--panel) 60%);
   border-color: rgba(110, 231, 183, 0.25);
+}
+
+/* Dashboard KPI color themes */
+#tab-dashboard .cards .card:nth-child(1) {
+  background: linear-gradient(160deg, rgba(110, 231, 183, 0.18) 0%, var(--panel) 65%);
+  border-color: rgba(110, 231, 183, 0.28);
+}
+#tab-dashboard .cards .card:nth-child(1) h2 {
+  background: linear-gradient(135deg, #6ee7b7 0%, #34d399 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+#tab-dashboard .cards .card:nth-child(2) {
+  background: linear-gradient(160deg, rgba(96, 165, 250, 0.18) 0%, var(--panel) 65%);
+  border-color: rgba(96, 165, 250, 0.28);
+}
+#tab-dashboard .cards .card:nth-child(2) h2 {
+  background: linear-gradient(135deg, #60a5fa 0%, #818cf8 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+#tab-dashboard .cards .card:nth-child(3) {
+  background: linear-gradient(160deg, rgba(244, 114, 182, 0.18) 0%, var(--panel) 65%);
+  border-color: rgba(244, 114, 182, 0.28);
+}
+#tab-dashboard .cards .card:nth-child(3) h2 {
+  background: linear-gradient(135deg, #f472b6 0%, #fb7185 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+#tab-dashboard .cards .card:nth-child(4) {
+  background: linear-gradient(160deg, rgba(251, 191, 36, 0.18) 0%, var(--panel) 65%);
+  border-color: rgba(251, 191, 36, 0.28);
+}
+#tab-dashboard .cards .card:nth-child(4) h2 {
+  background: linear-gradient(135deg, #fbbf24 0%, #fb923c 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* Investing KPI color themes */
+#tab-invest .cards .card:nth-child(1) h2 {
+  background: linear-gradient(135deg, #c4b5fd 0%, #818cf8 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+#tab-invest .cards .card:nth-child(2) h2 {
+  background: linear-gradient(135deg, #93c5fd 0%, #60a5fa 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+#tab-invest .cards .card:nth-child(3) h2 {
+  background: linear-gradient(135deg, #6ee7b7 0%, #5eead4 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+#tab-invest .cards .card:nth-child(4) h2 {
+  background: linear-gradient(135deg, #fbbf24 0%, #f472b6 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* Category color dot */
+.cat-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 0.55rem;
+  vertical-align: middle;
+  box-shadow: 0 0 10px currentColor;
 }
 .card-label {
   color: var(--muted);
