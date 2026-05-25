@@ -1,16 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap');
 
 :root {
-  --bg-0: #2a1768;
-  --bg-1: #1a2470;
-  --panel: rgba(255, 255, 255, 0.10);
+  --bg-0: #6d28d9;
+  --bg-1: #2563eb;
+  --panel: rgba(20, 12, 50, 0.32);
   --panel-solid: #2a2070;
-  --panel-2: rgba(255, 255, 255, 0.08);
-  --line: rgba(255, 255, 255, 0.22);
-  --line-strong: rgba(255, 255, 255, 0.32);
+  --panel-2: rgba(20, 12, 50, 0.20);
+  --line: rgba(255, 255, 255, 0.18);
+  --line-strong: rgba(255, 255, 255, 0.30);
   --text: #ffffff;
-  --text-dim: #e6e1ff;
-  --muted: #c4bfe5;
+  --text-dim: #f0ecff;
+  --muted: #d6cff5;
   --accent: #6ee7b7;
   --accent-2: #60a5fa;
   --accent-3: #c4b5fd;
@@ -33,15 +33,15 @@ body {
   -webkit-font-smoothing: antialiased;
   background:
     linear-gradient(135deg,
-      #4338ca 0%,
-      #7c3aed 22%,
-      #2563eb 44%,
-      #0891b2 66%,
-      #0d9488 88%,
-      #4338ca 100%);
-  background-size: 200% 200%;
+      #818cf8 0%,
+      #c084fc 22%,
+      #f472b6 44%,
+      #fb923c 66%,
+      #facc15 80%,
+      #34d399 100%);
+  background-size: 220% 220%;
   background-attachment: fixed;
-  animation: bgShift 30s ease-in-out infinite;
+  animation: bgShift 28s ease-in-out infinite;
   color: var(--text);
   min-height: 100vh;
   position: relative;
@@ -59,25 +59,18 @@ body::before {
   inset: -20%;
   z-index: -2;
   background:
-    radial-gradient(45% 35% at 8% 8%,   rgba(110,231,183,0.95), transparent 60%),
-    radial-gradient(40% 32% at 92% 12%, rgba(244, 114, 182, 0.90), transparent 60%),
-    radial-gradient(50% 38% at 75% 88%, rgba(251, 191, 36, 0.85), transparent 60%),
-    radial-gradient(55% 42% at 15% 82%, rgba(34, 211, 238, 0.80), transparent 60%),
-    radial-gradient(38% 30% at 50% 50%, rgba(196, 181, 253, 0.55), transparent 60%);
-  filter: blur(55px) saturate(1.55);
+    radial-gradient(45% 35% at 8% 8%,   rgba(110,231,183,0.75), transparent 60%),
+    radial-gradient(40% 32% at 92% 12%, rgba(244, 114, 182, 0.70), transparent 60%),
+    radial-gradient(50% 38% at 75% 88%, rgba(251, 191, 36, 0.65), transparent 60%),
+    radial-gradient(55% 42% at 15% 82%, rgba(34, 211, 238, 0.65), transparent 60%),
+    radial-gradient(38% 30% at 50% 50%, rgba(255, 255, 255, 0.18), transparent 60%);
+  filter: blur(60px) saturate(1.4);
   pointer-events: none;
   animation: drift 22s ease-in-out infinite alternate, hueShift 40s linear infinite;
   will-change: transform, filter;
 }
 
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background: linear-gradient(180deg, rgba(20,10,50,0.02) 0%, rgba(20,10,50,0.18) 100%);
-  pointer-events: none;
-}
+body::after { display: none; }
 
 @keyframes drift {
   0%   { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
@@ -244,35 +237,35 @@ main {
 
 /* Dashboard KPI color themes */
 #tab-dashboard .cards .card:nth-child(1) {
-  background: linear-gradient(160deg, rgba(110, 231, 183, 0.18) 0%, var(--panel) 65%);
-  border-color: rgba(110, 231, 183, 0.28);
+  background: linear-gradient(160deg, rgba(52, 211, 153, 0.55) 0%, rgba(20, 12, 50, 0.30) 70%);
+  border-color: rgba(110, 231, 183, 0.50);
 }
 #tab-dashboard .cards .card:nth-child(1) h2 {
-  background: linear-gradient(135deg, #6ee7b7 0%, #34d399 100%);
+  background: linear-gradient(135deg, #d1fae5 0%, #6ee7b7 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 #tab-dashboard .cards .card:nth-child(2) {
-  background: linear-gradient(160deg, rgba(96, 165, 250, 0.18) 0%, var(--panel) 65%);
-  border-color: rgba(96, 165, 250, 0.28);
+  background: linear-gradient(160deg, rgba(96, 165, 250, 0.55) 0%, rgba(20, 12, 50, 0.30) 70%);
+  border-color: rgba(96, 165, 250, 0.50);
 }
 #tab-dashboard .cards .card:nth-child(2) h2 {
-  background: linear-gradient(135deg, #60a5fa 0%, #818cf8 100%);
+  background: linear-gradient(135deg, #dbeafe 0%, #93c5fd 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 #tab-dashboard .cards .card:nth-child(3) {
-  background: linear-gradient(160deg, rgba(244, 114, 182, 0.18) 0%, var(--panel) 65%);
-  border-color: rgba(244, 114, 182, 0.28);
+  background: linear-gradient(160deg, rgba(244, 114, 182, 0.55) 0%, rgba(20, 12, 50, 0.30) 70%);
+  border-color: rgba(244, 114, 182, 0.50);
 }
 #tab-dashboard .cards .card:nth-child(3) h2 {
-  background: linear-gradient(135deg, #f472b6 0%, #fb7185 100%);
+  background: linear-gradient(135deg, #fce7f3 0%, #f9a8d4 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 #tab-dashboard .cards .card:nth-child(4) {
-  background: linear-gradient(160deg, rgba(251, 191, 36, 0.18) 0%, var(--panel) 65%);
-  border-color: rgba(251, 191, 36, 0.28);
+  background: linear-gradient(160deg, rgba(251, 191, 36, 0.55) 0%, rgba(20, 12, 50, 0.30) 70%);
+  border-color: rgba(251, 191, 36, 0.50);
 }
 #tab-dashboard .cards .card:nth-child(4) h2 {
-  background: linear-gradient(135deg, #fbbf24 0%, #fb923c 100%);
+  background: linear-gradient(135deg, #fef3c7 0%, #fcd34d 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 
