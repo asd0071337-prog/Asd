@@ -1,24 +1,24 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap');
 
 :root {
-  --bg-0: #07091a;
-  --bg-1: #0c1024;
-  --panel: rgba(20, 25, 50, 0.55);
-  --panel-solid: #131831;
-  --panel-2: rgba(255, 255, 255, 0.04);
-  --line: rgba(255, 255, 255, 0.08);
-  --line-strong: rgba(255, 255, 255, 0.14);
-  --text: #eef0fa;
-  --text-dim: #b6bcd8;
-  --muted: #7e85a8;
+  --bg-0: #1a1240;
+  --bg-1: #161d4a;
+  --panel: rgba(40, 30, 80, 0.42);
+  --panel-solid: #211a4a;
+  --panel-2: rgba(255, 255, 255, 0.06);
+  --line: rgba(255, 255, 255, 0.14);
+  --line-strong: rgba(255, 255, 255, 0.22);
+  --text: #f3f1ff;
+  --text-dim: #d3d0f0;
+  --muted: #a39fc8;
   --accent: #6ee7b7;
   --accent-2: #60a5fa;
   --accent-3: #c4b5fd;
   --warn: #fbbf24;
   --danger: #f87171;
-  --shadow-sm: 0 1px 0 rgba(255,255,255,0.04);
-  --shadow-md: 0 10px 30px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.04) inset;
-  --shadow-lg: 0 20px 60px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.06) inset;
+  --shadow-sm: 0 1px 0 rgba(255,255,255,0.06);
+  --shadow-md: 0 10px 30px rgba(0,0,0,0.30), 0 1px 0 rgba(255,255,255,0.07) inset;
+  --shadow-lg: 0 20px 60px rgba(0,0,0,0.40), 0 1px 0 rgba(255,255,255,0.09) inset;
   --radius-sm: 10px;
   --radius-md: 14px;
   --radius-lg: 18px;
@@ -31,7 +31,9 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-feature-settings: "cv11", "ss01", "ss03";
   -webkit-font-smoothing: antialiased;
-  background: var(--bg-0);
+  background:
+    linear-gradient(135deg, #1f1054 0%, #1a1546 35%, #122448 70%, #112e4a 100%);
+  background-attachment: fixed;
   color: var(--text);
   min-height: 100vh;
   position: relative;
@@ -41,15 +43,16 @@ body {
 body::before {
   content: '';
   position: fixed;
-  inset: -15%;
+  inset: -18%;
   z-index: -2;
   background:
-    radial-gradient(50% 35% at 12% 8%,  rgba(110,231,183,0.42), transparent 60%),
-    radial-gradient(45% 32% at 88% 12%, rgba(96,165,250,0.38),  transparent 60%),
-    radial-gradient(50% 38% at 75% 85%, rgba(196,181,253,0.36), transparent 60%),
-    radial-gradient(60% 45% at 20% 78%, rgba(244, 114, 182, 0.22), transparent 60%),
-    radial-gradient(40% 30% at 50% 50%, rgba(251, 191, 36, 0.10), transparent 60%);
-  filter: blur(38px) saturate(1.4);
+    radial-gradient(50% 35% at 10% 8%,  rgba(110,231,183,0.85), transparent 60%),
+    radial-gradient(45% 32% at 88% 12%, rgba(96,165,250,0.85),  transparent 60%),
+    radial-gradient(55% 38% at 75% 85%, rgba(196,181,253,0.80), transparent 60%),
+    radial-gradient(60% 45% at 18% 78%, rgba(244, 114, 182, 0.65), transparent 60%),
+    radial-gradient(40% 30% at 50% 50%, rgba(251, 191, 36, 0.40), transparent 60%),
+    radial-gradient(45% 35% at 65% 35%, rgba(34, 211, 238, 0.45), transparent 60%);
+  filter: blur(50px) saturate(1.5);
   pointer-events: none;
   animation: drift 22s ease-in-out infinite alternate, hueShift 40s linear infinite;
   will-change: transform, filter;
@@ -60,7 +63,7 @@ body::after {
   position: fixed;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(180deg, rgba(7,9,26,0.45) 0%, rgba(7,9,26,0.80) 100%);
+  background: linear-gradient(180deg, rgba(20,15,55,0.10) 0%, rgba(20,15,55,0.35) 100%);
   pointer-events: none;
 }
 
