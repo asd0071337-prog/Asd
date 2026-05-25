@@ -376,8 +376,13 @@ function renderInvest() {
     save(); renderInvest(); renderDashboard();
   }));
 
-  document.getElementById("port-value").textContent = fmt.format(totalVal);
-  document.getElementById("port-cost").textContent = fmt.format(totalCost);
+  if (typeof animateCount === "function") {
+    animateCount(document.getElementById("port-value"), totalVal,  (v) => fmt.format(v));
+    animateCount(document.getElementById("port-cost"),  totalCost, (v) => fmt.format(v));
+  } else {
+    document.getElementById("port-value").textContent = fmt.format(totalVal);
+    document.getElementById("port-cost").textContent = fmt.format(totalCost);
+  }
   const gain = totalVal - totalCost;
   const gainEl = document.getElementById("port-gain");
   gainEl.textContent = fmt.format(gain);
@@ -785,21 +790,42 @@ function renderWatchlist() {
 
 // ---------------- Dashboard ----------------
 let cashflowChart, catChart;
+
+const _countTimers = new WeakMap();
+function animateCount(el, target, formatter, duration = 850) {
+  if (!el) return;
+  const prev = _countTimers.get(el);
+  if (prev) cancelAnimationFrame(prev);
+  const start = parseFloat(el.dataset.lastValue || "0");
+  el.dataset.lastValue = String(target);
+  const t0 = performance.now();
+  function tick(now) {
+    const t = Math.min(1, (now - t0) / duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const v = start + (target - start) * eased;
+    el.textContent = formatter(v);
+    if (t < 1) _countTimers.set(el, requestAnimationFrame(tick));
+  }
+  _countTimers.set(el, requestAnimationFrame(tick));
+}
+
 function renderDashboard() {
   // Net worth = cash (income - expense) + portfolio
   const totalIncome = sum(STATE.transactions.filter(t => t.type === "income").map(t => t.amt));
   const totalSpend = sum(STATE.transactions.filter(t => t.type === "expense").map(t => t.amt));
   const portfolio = sum(STATE.holdings.map(h => (h.price ?? h.cost) * h.shares));
   const networth = totalIncome - totalSpend + portfolio;
-  document.getElementById("kpi-networth").textContent = fmt.format(networth);
+  animateCount(document.getElementById("kpi-networth"), networth, (v) => fmt.format(v));
 
   const thisMonth = new Date().toISOString().slice(0, 7);
   const mi = sum(STATE.transactions.filter(t => t.type === "income" && t.date.startsWith(thisMonth)).map(t => t.amt));
   const me = sum(STATE.transactions.filter(t => t.type === "expense" && t.date.startsWith(thisMonth)).map(t => t.amt));
-  document.getElementById("kpi-income").textContent = fmt.format(mi);
-  document.getElementById("kpi-spend").textContent = fmt.format(me);
+  animateCount(document.getElementById("kpi-income"), mi, (v) => fmt.format(v));
+  animateCount(document.getElementById("kpi-spend"),  me, (v) => fmt.format(v));
   const rate = mi > 0 ? ((mi - me) / mi) * 100 : 0;
-  document.getElementById("kpi-rate").textContent = mi > 0 ? rate.toFixed(0) + "%" : "—";
+  const rateEl = document.getElementById("kpi-rate");
+  if (mi > 0) animateCount(rateEl, rate, (v) => v.toFixed(0) + "%");
+  else rateEl.textContent = "—";
 
   // Previous-month delta
   const prev = previousMonth(thisMonth);
