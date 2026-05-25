@@ -33,15 +33,15 @@ body {
   -webkit-font-smoothing: antialiased;
   background:
     linear-gradient(135deg,
-      #6366f1 0%,
-      #a855f7 22%,
-      #ec4899 44%,
-      #f97316 66%,
-      #eab308 82%,
-      #10b981 100%);
+      #4f46e5 0%,
+      #9333ea 22%,
+      #db2777 44%,
+      #ea580c 66%,
+      #ca8a04 82%,
+      #059669 100%);
   background-size: 220% 220%;
   background-attachment: fixed;
-  animation: bgShift 28s ease-in-out infinite;
+  animation: bgShift 32s ease-in-out infinite;
   color: var(--text);
   min-height: 100vh;
   position: relative;
@@ -74,7 +74,7 @@ body::after {
   position: fixed;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(180deg, rgba(15,10,35,0.15) 0%, rgba(15,10,35,0.30) 100%);
+  background: linear-gradient(180deg, rgba(15,10,35,0.30) 0%, rgba(15,10,35,0.45) 100%);
   pointer-events: none;
 }
 
