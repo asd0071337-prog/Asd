@@ -33,11 +33,11 @@ body {
   -webkit-font-smoothing: antialiased;
   background:
     linear-gradient(140deg,
-      #1a1448 0%,
-      #221a55 25%,
-      #1a2566 55%,
-      #163566 80%,
-      #1a2855 100%);
+      #2a1660 0%,
+      #1f1450 25%,
+      #311666 55%,
+      #3a1a55 80%,
+      #2a1655 100%);
   background-attachment: fixed;
   color: var(--text);
   min-height: 100vh;
@@ -50,11 +50,11 @@ body::before {
   inset: -18%;
   z-index: -2;
   background:
-    radial-gradient(45% 35% at 8% 5%,   rgba(110,231,183,0.45), transparent 60%),
-    radial-gradient(42% 32% at 92% 12%, rgba(96, 165, 250, 0.42), transparent 60%),
-    radial-gradient(50% 38% at 78% 88%, rgba(244, 114, 182, 0.38), transparent 60%),
-    radial-gradient(55% 42% at 15% 85%, rgba(196, 181, 253, 0.38), transparent 60%),
-    radial-gradient(35% 30% at 60% 50%, rgba(34, 211, 238, 0.25), transparent 60%);
+    radial-gradient(45% 35% at 8% 5%,   rgba(110, 231, 183, 0.45), transparent 60%),
+    radial-gradient(42% 32% at 92% 10%, rgba(244, 114, 182, 0.45), transparent 60%),
+    radial-gradient(50% 38% at 80% 90%, rgba(196, 181, 253, 0.42), transparent 60%),
+    radial-gradient(55% 42% at 15% 85%, rgba(251, 191, 36, 0.32), transparent 60%),
+    radial-gradient(35% 30% at 55% 45%, rgba(167, 139, 250, 0.28), transparent 60%);
   filter: blur(55px) saturate(1.35);
   pointer-events: none;
   animation: drift 24s ease-in-out infinite alternate, hueShift 45s linear infinite;
